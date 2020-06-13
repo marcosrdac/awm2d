@@ -1,15 +1,15 @@
 using Base.Threads
-using PyPlot
+#using PyPlot
 using InteractiveUtils
 include("./reff.jl")
 
 
 # parameters
-NX = 9
-NZ = 9
-NT = 1
+NX = 300
+NZ = 300
+NT = 100
 
-dt = .1
+dt = .0001
 h = 1
 
 # three layered model (temporary)
@@ -43,10 +43,9 @@ P = zeros((size(P0,1)+2*(ABS+1),
            3))
 P[1+ABS+1:end-ABS-1, 1+ABS+1:end-ABS-1, 1] .= P0
 
-σ = .5
-ricker = map(t->2/(√(3*σ)π^(1/4))*(1-(t/σ)^2)*exp(-t^2/(2σ^2)), collect(-20:20)/8)
+signal = rickerwave(60, dt)
 
-function propagate(P, v, h²∇², nz, nx, nt, h, dt, ABS)
+function propagate(P, v, signal, h²∇², nz, nx, nt, h, dt, ABS)
     dtoh2 = dt/h^2
     for timeiter in eachindex(1:nt)
         new_t = 1 + (timeiter)%3    # 2
@@ -56,7 +55,8 @@ function propagate(P, v, h²∇², nz, nx, nt, h, dt, ABS)
         #println(timeiter, " ", size(ricker, 1))
         #timeiter < size(ricker,1) ? P[100, 100, cur_t] = ricker[timeiter] : nothing
         #println(timeiter, " ", size(ricker, 1), " ", ricker[timeiter])
-        #timeiter < size(ricker,1) ? P[2+ABS, 2+ABS+nx/2, cur_t] = ricker[timeiter] : nothing
+        #P[2+ABS, 2+ABS+Integer(floor(nx/2)), cur_t] =
+        #        (timeiter < size(signal,1) ? signal[timeiter] : 0)
 
         #println(new_t, " ", cur_t, " ", old_t)
         @threads for spciter in CartesianIndices((2:nz+2*ABS+1, 2:nx+2*ABS+1))
@@ -70,7 +70,7 @@ function propagate(P, v, h²∇², nz, nx, nt, h, dt, ABS)
     end
 end
 
-@time propagate(P, v, h²∇², NZ, NX, NT, h, dt, ABS)
+@time propagate(P, v, signal, h²∇², NZ, NX, NT, h, dt, ABS)
 
 #imshow(P[:,:,1])
 #plt.show()
