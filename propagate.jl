@@ -1,76 +1,83 @@
-using Base.Threads
-#using PyPlot
 using InteractiveUtils
 include("./reff.jl")
 
-
-# parameters
-NX = 300
-NZ = 300
-NT = 100
-
-dt = .0001
-h = 1
-
-# three layered model (temporary)
-H1 = (2*NZ)÷6
-H2 = (3*NZ)÷6
-H3 = (4*NZ)÷6
-V1 = 3
-V2 = 3
-V3 = 3
-
-# reflectors position
-z1 = H1
-z2 = z1+H2
-
-# actually defining velocity field
-v0 = Array{Real}(undef, (NZ,NX))
-v0[1:z1, 1:end] .= V1
-v0[z1+1:z2, 1:end] .= V2
-v0[z2+1:end, 1:end] .= V3
-
-# starting from pressure field P0
-P0 = zero(v0)
-#P0[1,1] = 1     # endon test
-#P0[1, NX÷2] = 1  # split test
+println("Number of threads = $(nthreads())")
 
 
-v = pad_extremes(v0, ABS)
+const TAPER = 80
 
-P = zeros((size(P0,1)+2*(ABS+1),
-           size(P0,2)+2*(ABS+1),
-           3))
-P[1+ABS+1:end-ABS-1, 1+ABS+1:end-ABS-1, 1] .= P0
 
-signal = rickerwave(60, dt)
+# mesh and solving parameters
+begin
+    h  = 1.0 # km
+    Δt = .001 # s
+    NX = 100
+    NZ = 100
+    NT = 1000
+end
 
-function propagate(P, v, signal, h²∇², nz, nx, nt, h, dt, ABS)
-    dtoh2 = dt/h^2
-    for timeiter in eachindex(1:nt)
-        new_t = 1 + (timeiter)%3    # 2
-        cur_t = 1 + (timeiter+2)%3  # 1
-        old_t = 1 + (timeiter+1)%3  # 3
 
-        #println(timeiter, " ", size(ricker, 1))
-        #timeiter < size(ricker,1) ? P[100, 100, cur_t] = ricker[timeiter] : nothing
-        #println(timeiter, " ", size(ricker, 1), " ", ricker[timeiter])
-        #P[2+ABS, 2+ABS+Integer(floor(nx/2)), cur_t] =
-        #        (timeiter < size(signal,1) ? signal[timeiter] : 0)
+# three layered model parameters
+begin
+    H1 = (2*NZ)÷6
+    H2 = (3*NZ)÷6
+    V1 = 3.
+    V2 = 3.
+    V3 = 3.
 
-        #println(new_t, " ", cur_t, " ", old_t)
-        @threads for spciter in CartesianIndices((2:nz+2*ABS+1, 2:nx+2*ABS+1))
-            begin
-                zP, xP = spciter[1], spciter[2]
-                zv, xv = zP-1, xP-1
-                @views P[zP, xP, new_t] = new_p(P[:,:,cur_t], P[:,:,old_t],
-                                                 v, dtoh2, h²∇², zP, xP, zv, xv)
-            end
-        end
+    # reflectors position
+    z1 = H1
+    z2 = z1+H2
+
+    # actually defining velocity field
+    v0 = Array{Float64}(undef, (NZ,NX))
+    v0[   1:z1,  1:end] .= V1
+    v0[z1+1:z2,  1:end] .= V2
+    v0[z2+1:end, 1:end] .= V3
+end
+
+
+# signal parameters
+begin
+    ν = 6 # Hz
+    signal = rickerwave(ν, Δt)
+    array = "split"
+
+    if array === "split"
+        signal_pos = [1, NX÷2] .+ (TAPER+∇²r)
+    elseif array === "endon"
+        signal_pos = [1, 1] .+ (TAPER+1)
+    elseif array === "center"
+        signal_pos = [NZ÷2, NX÷2] .+ (TAPER+∇²r)    
     end
 end
 
-@time propagate(P, v, signal, h²∇², NZ, NX, NT, h, dt, ABS)
 
-#imshow(P[:,:,1])
-#plt.show()
+# starting pressure field
+begin
+    P0 = zero(v0)
+    #P0[1,1] = 1      # endon test
+    #P0[1, NX÷2] = 1  # split test
+end
+
+
+# padding arrays, allocating 2 more times for pressure field
+begin
+    _v = pad_extremes(v0, TAPER)
+    _P = pad_zeros_add_zeros_axis(P0, TAPER+1, 3)
+end
+
+
+@time propagate_absorb(_P, _v, h, Δt, NT, signal, TAPER)
+#@time propagate(_P, _v, h, Δt, NT, signal)
+
+
+##using Profile
+using PyPlot
+###imshow(_P[1+taper:end-taper, 1+taper:end-taper, 1])
+imshow(_P[:, :, 1])
+plt.show()
+
+#using Plots
+#heatmap(_P[:, :, 1])
+#savefig("test.png")
