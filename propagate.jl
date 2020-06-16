@@ -1,5 +1,6 @@
+using BenchmarkTools
 using InteractiveUtils
-include("./reff.jl")
+include("./new_reff.jl")
 
 println("Number of threads = $(nthreads())")
 
@@ -11,9 +12,9 @@ const TAPER = 80
 begin
     h  = 1.0 # km
     Δt = .001 # s
-    NX = 100
-    NZ = 100
-    NT = 1000
+    NX = 250
+    NZ = 250
+    NT = 432
 end
 
 
@@ -41,7 +42,7 @@ end
 begin
     ν = 6 # Hz
     signal = rickerwave(ν, Δt)
-    array = "split"
+    array = "center"
 
     if array === "split"
         signal_pos = [1, NX÷2] .+ (TAPER+∇²r)
@@ -68,16 +69,23 @@ begin
 end
 
 
-@time propagate_absorb(_P, _v, h, Δt, NT, signal, TAPER)
-#@time propagate(_P, _v, h, Δt, NT, signal)
+grid = FDM_Grid(h, Δt, NZ, NX, NT, TAPER)
+println("foi o grid")
+#propagate(grid, _P, _v, signal)
+@btime propagate($grid, $_P, $_v,  $signal, $signal_pos)
+#@time propagate(grid, _P, _v,  signal)
+#println("foi o calc 1")
+#@btime propagate($grid, $_P, $_v,  $signal)
+#println("foi o calc 2")
+##@time propagate(_P, _v, h, Δt, NT, signal)
 
 
-##using Profile
+###using Profile
 using PyPlot
-###imshow(_P[1+taper:end-taper, 1+taper:end-taper, 1])
+####imshow(_P[1+taper:end-taper, 1+taper:end-taper, 1])
 imshow(_P[:, :, 1])
 plt.show()
-
-#using Plots
-#heatmap(_P[:, :, 1])
-#savefig("test.png")
+#
+##using Plots
+##heatmap(_P[:, :, 1])
+##savefig("test.png")
