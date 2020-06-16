@@ -11,9 +11,9 @@ const TAPER = 80
 begin
     h  = 1.0 # km
     Δt = .001 # s
-    NX = 200
-    NZ = 200
-    NT = 1000
+    NX = 101
+    NZ = 101
+    NT = 50
     grid = FDM_Grid(h, Δt, NZ, NX, NT, TAPER)
 end
 
@@ -42,15 +42,19 @@ end
 begin
     ν = 6 # Hz
     signal = rickerwave(ν, Δt)
-    array = "center"
+    array = "endon"
+
 
     if array === "split"
-        signal_pos = [1, NX÷2] .+ (TAPER+∇²r)
+        S = CartesianIndex(1, NX÷2)
     elseif array === "endon"
-        signal_pos = [1, 1] .+ (TAPER+1)
+        S = CartesianIndex(1, 1)
     elseif array === "center"
-        signal_pos = [NZ÷2, NX÷2] .+ (TAPER+∇²r)    
+        S = CartesianIndex(NZ÷2, NX÷2)
     end
+
+    OFFSET = CartesianIndex(TAPER+∇²r, TAPER+∇²r)
+    S += OFFSET
 end
 
 
@@ -69,34 +73,37 @@ begin
 end
 
 
-#@time propagate(grid, _P, _v,  signal, signal_pos)
-#@time propagate(grid, _P, _v,  signal, signal_pos)
+#@time propagate(grid, _P, _v,  signal, S)
+#@time propagate(grid, _P, _v,  signal, S)
 #println("foi o calc 1")
 #println("foi o calc 2")
 ##@time propagate(_P, _v, h, Δt, NT, signal)
 
 
 # runs 6-7 times, be careful
-#using BenchmarkTools
+using BenchmarkTools
 #print("oi")
-#@btime propagate($grid, $_P, $_v,  $signal, $signal_pos)
+@btime propagate_absorb($grid, $_P, $_v,  $signal, $S)
+#@btime propagate($grid, $_P, $_v,  $signal, $S)
+#@btime propagate_absorb($grid, $_P, $_v,  $signal, $S)
+#@btime propagate($grid, $_P, $_v,  $signal, $S)
 #print("oi")
-#@btime propagate($grid, $_P, $_v,  $signal, $signal_pos)
+#@btime propagate($grid, $_P, $_v,  $signal, $S)
 #print("oi")
-#@btime propagate($grid, $_P, $_v,  $signal, $signal_pos)
+#@btime propagate($grid, $_P, $_v,  $signal, $S)
 #print("oi")
 
 
-print("oi")
-@time propagate(grid, _P, _v,  signal, signal_pos)
-print("oi")
-@time propagate(grid, _P, _v,  signal, signal_pos)
-print("oi")
-@time propagate(grid, _P, _v,  signal, signal_pos)
-print("oi")
+#print("oi")
+#@time propagate(grid, _P, _v,  signal, S)
+#print("oi")
+#@time propagate(grid, _P, _v,  signal, S)
+#print("oi")
+#@time propagate(grid, _P, _v,  signal, S)
+#print("oi")
 
 
-#using PyPlot
-#####imshow(_P[1+taper:end-taper, 1+taper:end-taper, 1])
-#imshow(_P[:, :, 1])
-#plt.show()
+using PyPlot
+#imshow(_P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
+imshow(_P[:, :, 1])
+plt.show()

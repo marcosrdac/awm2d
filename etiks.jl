@@ -5,7 +5,7 @@ const h²∇² = fill(1.0, 3, 3)
 ABS=0
 nz=400
 nx=400
-nt=2500
+nt=4
 N = 400
 P = rand(N, N, 3)
 v = rand(N, N)
@@ -47,13 +47,13 @@ function propagate_idiomatic(P, v, signal, grid_def)
     # time loop, order is important
     for timeiter in eachindex(1:nt)
         # which of the thre times of P are what?
-        new_t = mod1(timeiter+1, 3)       # [2] now
-        cur_t = mod1(timeiter,   3)     # [1] last
-        old_t = mod1(timeiter+2, 3)    # [3] before last
+        #new_t =     # [2] now
+        #cur_t =     # [1] last
+        #old_t =     # [3] before last
 
-        old_P = @view P[:,:,old_t]
-        cur_P = @view P[:,:,cur_t]
-        new_P = @view P[:,:,new_t]
+        old_P = @view P[:,:,mod1(timeiter+1, 3)]
+        cur_P = @view P[:,:,mod1(timeiter,   3)]
+        new_P = @view P[:,:,mod1(timeiter+2, 3)]
 
         # adding signal to field before iteration
         cur_P[signal_position[1],signal_position[2]] =
