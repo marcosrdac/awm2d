@@ -1,4 +1,3 @@
-using BenchmarkTools
 using InteractiveUtils
 include("./new_reff.jl")
 
@@ -12,9 +11,10 @@ const TAPER = 80
 begin
     h  = 1.0 # km
     Δt = .001 # s
-    NX = 250
-    NZ = 250
-    NT = 432
+    NX = 200
+    NZ = 200
+    NT = 1000
+    grid = FDM_Grid(h, Δt, NZ, NX, NT, TAPER)
 end
 
 
@@ -69,23 +69,34 @@ begin
 end
 
 
-grid = FDM_Grid(h, Δt, NZ, NX, NT, TAPER)
-println("foi o grid")
-#propagate(grid, _P, _v, signal)
-@btime propagate($grid, $_P, $_v,  $signal, $signal_pos)
-#@time propagate(grid, _P, _v,  signal)
+#@time propagate(grid, _P, _v,  signal, signal_pos)
+#@time propagate(grid, _P, _v,  signal, signal_pos)
 #println("foi o calc 1")
-#@btime propagate($grid, $_P, $_v,  $signal)
 #println("foi o calc 2")
 ##@time propagate(_P, _v, h, Δt, NT, signal)
 
 
-###using Profile
-using PyPlot
-####imshow(_P[1+taper:end-taper, 1+taper:end-taper, 1])
-imshow(_P[:, :, 1])
-plt.show()
-#
-##using Plots
-##heatmap(_P[:, :, 1])
-##savefig("test.png")
+# runs 6-7 times, be careful
+#using BenchmarkTools
+#print("oi")
+#@btime propagate($grid, $_P, $_v,  $signal, $signal_pos)
+#print("oi")
+#@btime propagate($grid, $_P, $_v,  $signal, $signal_pos)
+#print("oi")
+#@btime propagate($grid, $_P, $_v,  $signal, $signal_pos)
+#print("oi")
+
+
+print("oi")
+@time propagate(grid, _P, _v,  signal, signal_pos)
+print("oi")
+@time propagate(grid, _P, _v,  signal, signal_pos)
+print("oi")
+@time propagate(grid, _P, _v,  signal, signal_pos)
+print("oi")
+
+
+#using PyPlot
+#####imshow(_P[1+taper:end-taper, 1+taper:end-taper, 1])
+#imshow(_P[:, :, 1])
+#plt.show()

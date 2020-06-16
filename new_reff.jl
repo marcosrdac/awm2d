@@ -65,13 +65,6 @@ function propagate(grid, P, v, signal, signal_position)
 end
 
 
-
-
-
-#function new_p(cur_P, old_P, v, Δtoh², zP, xP, zv, xv)
-#    2*cur_P[zP, xP] - old_P[zP, xP] + v[zv, xv]^2 * Δt∇²(cur_P, Δtoh², zP, xP)
-#end
-
 function nearest_border_distance(nz, nx, border, z, x)
     if border === 4      x
     elseif border === 8  z
