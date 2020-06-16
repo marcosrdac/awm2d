@@ -20,3 +20,6 @@ Without dealing with absorption layers
   600x600x1000
     python compiled version: 5.4 s
     julia compiled version:  5.4 s
+
+Observed:
+  Extra allocated memory is a function of time
