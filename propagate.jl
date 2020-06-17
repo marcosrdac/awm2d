@@ -4,27 +4,27 @@ include("./reff.jl")
 println("Number of threads = $(nthreads())")
 
 
-const TAPER = 80
+const TAPER = 40
 
 
 # mesh and solving parameters
 begin
     h  = 1.0 # km
     Δt = .001 # s
-    NX = 101
-    NZ = 101
-    NT = 50
+    NX = 321
+    NZ = 321
+    NT = 2500
     grid = FDM_Grid(h, Δt, NZ, NX, NT, TAPER)
 end
 
 
 # three layered model parameters
 begin
-    H1 = (2*NZ)÷6
-    H2 = (3*NZ)÷6
+    H1 = (2*NZ)÷8
+    H2 = (3*NZ)÷8
     V1 = 3.
-    V2 = 3.
-    V3 = 3.
+    V2 = 4.
+    V3 = 5.
 
     # reflectors position
     z1 = H1
@@ -42,7 +42,7 @@ end
 begin
     ν = 6 # Hz
     signal = rickerwave(ν, Δt)
-    array = "endon"
+    array = "split"
 
 
     if array === "split"
@@ -72,38 +72,19 @@ begin
     _P = pad_zeros_add_zeros_axis(P0, TAPER+1, 3)
 end
 
-
+#@time propagate_absorb(grid, _P, _v,  signal, S)
 #@time propagate(grid, _P, _v,  signal, S)
-#@time propagate(grid, _P, _v,  signal, S)
-#println("foi o calc 1")
-#println("foi o calc 2")
-##@time propagate(_P, _v, h, Δt, NT, signal)
 
 
-# runs 6-7 times, be careful
 using BenchmarkTools
-#print("oi")
+# runs 6-7 times, be careful
+print("Propagate absorb ")
 @btime propagate_absorb($grid, $_P, $_v,  $signal, $S)
-#@btime propagate($grid, $_P, $_v,  $signal, $S)
-#@btime propagate_absorb($grid, $_P, $_v,  $signal, $S)
-#@btime propagate($grid, $_P, $_v,  $signal, $S)
-#print("oi")
-#@btime propagate($grid, $_P, $_v,  $signal, $S)
-#print("oi")
-#@btime propagate($grid, $_P, $_v,  $signal, $S)
-#print("oi")
+print("Propagate pure ")
+@btime propagate($grid, $_P, $_v,  $signal, $S)
 
 
-#print("oi")
-#@time propagate(grid, _P, _v,  signal, S)
-#print("oi")
-#@time propagate(grid, _P, _v,  signal, S)
-#print("oi")
-#@time propagate(grid, _P, _v,  signal, S)
-#print("oi")
-
-
-using PyPlot
-#imshow(_P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
-imshow(_P[:, :, 1])
-plt.show()
+#using PyPlot
+##imshow(_P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
+#imshow(_P[:, :, 1])
+#plt.show()

@@ -58,7 +58,6 @@ function new_attenuated_p(IP, Iv, cur_P, old_P, v, Δtoh², taper, att_coef, bor
     dist = nearest_border_distance(v, border, Iv)
     att = attenuation_factor(taper, dist, att_coef)
 
-    #att_coef * (2*cur_P[IP] -  old_P[IP] + v[Iv]^2 * h²∇²(cur_P, IP))
     att * (2*cur_P[IP] - att * old_P[IP] + v[Iv]^2 * Δtoh² * h²∇²(cur_P, IP))
 end
 
@@ -155,9 +154,8 @@ function propagate_absorb(grid, P, v, signal, S)  # rewrite as source struct
         for border in sectors[2:end]
             @threads for Iv in border.indices
                 IP = Iv + I∇²r
-                #new_P[IP] = new_p(IP, Iv, cur_P, old_P, v, Δtoh²,
-                #                  taper, att_coef, sector.id)
-                new_P[IP] = new_attenuated_p(IP, Iv, cur_P, old_P, v, Δtoh², taper, att_coef, border.id)
+                new_P[IP] = new_attenuated_p(IP, Iv, cur_P, old_P, v, Δtoh²,
+                                             taper, att_coef, border.id)
             end
         end
 
