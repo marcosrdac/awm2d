@@ -4,16 +4,16 @@ include("./reff.jl")
 println("Number of threads = $(nthreads())")
 
 
-const TAPER = 40
+const TAPER = 1
 
 
 # mesh and solving parameters
 begin
     h  = 1.0 # km
     Δt = .001 # s
-    NX = 321
-    NZ = 321
-    NT = 2500
+    NX = 1
+    NZ = 1
+    NT = 2600
     grid = FDM_Grid(h, Δt, NZ, NX, NT, TAPER)
 end
 
@@ -42,7 +42,7 @@ end
 begin
     ν = 6 # Hz
     signal = rickerwave(ν, Δt)
-    array = "split"
+    array = "center"
 
 
     if array === "split"
@@ -72,19 +72,19 @@ begin
     _P = pad_zeros_add_zeros_axis(P0, TAPER+1, 3)
 end
 
-#@time propagate_absorb(grid, _P, _v,  signal, S)
+@time propagate_absorb(grid, _P, _v,  signal, S)
 #@time propagate(grid, _P, _v,  signal, S)
 
 
-using BenchmarkTools
-# runs 6-7 times, be careful
-print("Propagate absorb ")
-@btime propagate_absorb($grid, $_P, $_v,  $signal, $S)
-print("Propagate pure ")
-@btime propagate($grid, $_P, $_v,  $signal, $S)
+#using BenchmarkTools
+## runs 6-7 times, be careful
+#print("Propagate absorb ")
+#@btime propagate_absorb($grid, $_P, $_v,  $signal, $S)
+#print("Propagate pure ")
+#@btime propagate($grid, $_P, $_v,  $signal, $S)
 
 
 #using PyPlot
-##imshow(_P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
+####imshow(_P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
 #imshow(_P[:, :, 1])
 #plt.show()

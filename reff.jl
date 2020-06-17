@@ -91,47 +91,43 @@ end
 # extra allocated memory is a function of nt only
 
 
-struct Sector{T}
-    id::T  # THIS WHAS THE PROBLEM: SETTING id TO Integer
-    indices::CartesianIndices{2, Tuple{UnitRange{T}, UnitRange{T}}}
-end
-
-
 function get_sectors(nz, nx, taper=0)
-    sectors = Array{Sector}(undef, 9)
-    sectors[1] = Sector(5, CartesianIndices((taper+1:taper+nz,
-                                             taper+1:taper+nx)))
-    sectors[2] = Sector(7, CartesianIndices((1:taper,
-                                             1:taper)))
-    sectors[3] = Sector(4, CartesianIndices((taper+1:taper+nz,
-                                             1:taper)))
-    sectors[4] = Sector(1, CartesianIndices((taper+nz+1:nz+2taper,
-                                             1:taper)))
-    sectors[5] = Sector(8, CartesianIndices((1:taper,
-                                             taper+1:taper+nx)))
-    sectors[6] = Sector(2, CartesianIndices((taper+nz+1:nz+2taper,
-                                             taper+1:taper+nx)))
-    sectors[7] = Sector(9, CartesianIndices((1:taper,
-                                             taper+nx+1:nx+2taper)))
-    sectors[8] = Sector(6, CartesianIndices((taper+1:taper+nz,
-                                             taper+nx+1:nx+2taper)))
-    sectors[9] = Sector(3, CartesianIndices((taper+nz+1:nz+2taper,
-                                             taper+nx+1:nx+2taper)))
+    sectors = Array{CartesianIndices{2, Tuple{UnitRange{Int},
+                                              UnitRange{Int}}},
+                    1}(undef, 9)
+    # top left
+    sectors[7] = CartesianIndices((         1:taper,              1:taper    ))
+    # left
+    sectors[4] = CartesianIndices((   taper+1:taper+nz,           1:taper    ))
+    # bottom left
+    sectors[1] = CartesianIndices((taper+nz+1:nz+2taper,          1:taper    ))
+    # top
+    sectors[8] = CartesianIndices((         1:taper,        taper+1:taper+nx ))
+    # middle
+    sectors[5] = CartesianIndices((   taper+1:taper+nz,     taper+1:taper+nx ))
+    # bottom
+    sectors[2] = CartesianIndices((taper+nz+1:nz+2taper,    taper+1:taper+nx ))
+    # top right
+    sectors[9] = CartesianIndices((         1:taper,     taper+nx+1:nx+2taper))
+    # right
+    sectors[6] = CartesianIndices((   taper+1:taper+nz,  taper+nx+1:nx+2taper))
+    # bottom right
+    sectors[3] = CartesianIndices((taper+nz+1:nz+2taper, taper+nx+1:nx+2taper))
     return(sectors)
 end
 
 
-
 function propagate_absorb(grid, P, v, signal, S)  # rewrite as source struct
     @unpack h, Δt, nz, nx, nt, taper = grid
-    att_coef = 0.008
+    att_coef = 0.0015
     Δtoh² = Δt/h^2
-
-    sectors = get_sectors(nz, nx, taper)
+    borders = get_sectors(nz, nx, taper)[(1:end .!= 5) .&
+                                         (1:end .!= 8)]
+    borderids = collect(1:9)[(1:end .!= 5) .&
+                             (1:end .!= 8)]
 
     # time loop, order is important
     for timeiter in eachindex(1:nt)
-        # which of the thre times of P are what?
         new_t = mod1(timeiter+1, 3)    # [2] now
         cur_t = mod1(timeiter,   3)    # [1] last
         old_t = mod1(timeiter+2, 3)    # [3] before last
@@ -145,20 +141,22 @@ function propagate_absorb(grid, P, v, signal, S)  # rewrite as source struct
             cur_P[S] = signal[timeiter]
         end
 
-        # spacial loop, order is not important
-        @threads for Iv in sectors[1].indices
-            IP = Iv + I∇²r
-            new_P[IP] = new_p(IP, Iv, cur_P, old_P, v, Δtoh²)
-        end
-
-        for border in sectors[2:end]
-            @threads for Iv in border.indices
+        # attenuating current and old iteration borders
+        for B in eachindex(borders)
+            @threads for Iv in borders[B]
                 IP = Iv + I∇²r
-                new_P[IP] = new_attenuated_p(IP, Iv, cur_P, old_P, v, Δtoh²,
-                                             taper, att_coef, border.id)
+                dist = nearest_border_distance(v, B, Iv)
+                att = attenuation_factor(taper, dist, att_coef)
+                cur_P[IP] *= att
+                old_P[IP] *= att
             end
         end
 
+        # spacial loop, order is not important
+        @threads for Iv in CartesianIndices(v)
+            IP = Iv + I∇²r
+            new_P[IP] = new_p(IP, Iv, cur_P, old_P, v, Δtoh²)
+        end
     end
 end
 
