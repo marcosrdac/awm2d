@@ -4,16 +4,17 @@ include("./reff.jl")
 println("Number of threads = $(nthreads())")
 
 
-const TAPER = 1
+const TAPER = 60
+const POFFSET = CartesianIndex(TAPER+∇²r, TAPER+∇²r)
 
 
 # mesh and solving parameters
 begin
     h  = 1.0 # km
     Δt = .001 # s
-    NX = 1
-    NZ = 1
-    NT = 2600
+    NX = 321
+    NZ = 321
+    NT = 2700
     grid = FDM_Grid(h, Δt, NZ, NX, NT, TAPER)
 end
 
@@ -41,20 +42,15 @@ end
 # signal parameters
 begin
     ν = 6 # Hz
-    signal = rickerwave(ν, Δt)
-    array = "center"
+    array = "split"
+    signature = rickerwave(ν, Δt)
 
-
-    if array === "split"
-        S = CartesianIndex(1, NX÷2)
-    elseif array === "endon"
-        S = CartesianIndex(1, 1)
-    elseif array === "center"
-        S = CartesianIndex(NZ÷2, NX÷2)
+    if array === "split"      position = CartesianIndex(1, NX÷2)
+    elseif array === "endon"  position = CartesianIndex(1, 1)
+    elseif array === "center" position = CartesianIndex(NZ÷2, NX÷2)
     end
-
-    OFFSET = CartesianIndex(TAPER+∇²r, TAPER+∇²r)
-    S += OFFSET
+    position += POFFSET
+    signal = Signal(signature, position)
 end
 
 
@@ -72,19 +68,20 @@ begin
     _P = pad_zeros_add_zeros_axis(P0, TAPER+1, 3)
 end
 
-@time propagate_absorb(grid, _P, _v,  signal, S)
+#@time propagate_absorb(grid, _P, _v,  signal)
 #@time propagate(grid, _P, _v,  signal, S)
 
 
-#using BenchmarkTools
+using BenchmarkTools
 ## runs 6-7 times, be careful
 #print("Propagate absorb ")
-#@btime propagate_absorb($grid, $_P, $_v,  $signal, $S)
+@btime propagate_absorb($grid, $_P, $_v,  $signal)
 #print("Propagate pure ")
 #@btime propagate($grid, $_P, $_v,  $signal, $S)
 
 
-#using PyPlot
-####imshow(_P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
-#imshow(_P[:, :, 1])
-#plt.show()
+using PyPlot
+#plt.imshow(_P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
+plt.imshow(_P[:, :, 1];vmin=-.2, vmax=.2)
+plt.colorbar()
+plt.show()

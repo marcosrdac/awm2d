@@ -9,6 +9,7 @@ const ∇² = @SArray ([1/6.   4/6.  1/6.
 const ∇²r = size(∇², 1)÷2
 const I∇²r = CartesianIndex(∇²r, ∇²r)
 const I1 = CartesianIndex(1, 1)
+const ATTENUATION_COEFICIENT = 0.0035
 
 
 struct FDM_Grid{T}
@@ -18,6 +19,11 @@ struct FDM_Grid{T}
     nx::Int
     nt::Int
     taper::Int
+end
+
+struct Signal{T}
+    signature::AbstractArray{T}
+    position::CartesianIndex{2}
 end
 
 function h²∇²(cur_P, IP)
@@ -50,19 +56,21 @@ function nearest_border_distance(A, border, R)
 end
 
 
-function attenuation_factor(taper, dist, coef)
-    exp(-(coef*(taper-dist))^2)
+# for testing in python return(exp(-(0.0035*x))
+function attenuation_factor(taper, dist)
+    exp(-(ATTENUATION_COEFICIENT*(taper-dist))^2)
 end
 
-function new_attenuated_p(IP, Iv, cur_P, old_P, v, Δtoh², taper, att_coef, border::Integer=1)
-    dist = nearest_border_distance(v, border, Iv)
-    att = attenuation_factor(taper, dist, att_coef)
+# saved of this plague
+#function new_attenuated_p(IP, Iv, cur_P, old_P, v, Δtoh², taper, att_coef, border::Integer=1)
+#    dist = nearest_border_distance(v, border, Iv)
+#    att = attenuation_factor(taper, dist, att_coef)
+#
+#    att * (2*cur_P[IP] - att * old_P[IP] + v[Iv]^2 * Δtoh² * h²∇²(cur_P, IP))
+#end
 
-    att * (2*cur_P[IP] - att * old_P[IP] + v[Iv]^2 * Δtoh² * h²∇²(cur_P, IP))
-end
 
-
-function propagate(grid, P, v, signal, S)
+function propagate(grid, P, v, signal)
     @unpack h, Δt, nz, nx, nt = grid
     Δtoh² = Δt/h^2
     # time loop, order is important
@@ -77,8 +85,8 @@ function propagate(grid, P, v, signal, S)
         new_P = @view P[:,:,new_t]
 
         # adding signal to field before iteration
-        if timeiter <= size(signal,1)
-            cur_P[S] = signal[timeiter]
+        if timeiter <= size(signal.signature, 1)
+            cur_P[signal.position] = signal.signature[timeiter]
         end
 
         # spacial loop, order is not important
@@ -88,43 +96,43 @@ function propagate(grid, P, v, signal, S)
         end
     end
 end
-# extra allocated memory is a function of nt only
+
+
+struct Sector{T}
+    id::T  # THIS WHAS THE PROBLEM: SETTING id TO Integer
+    indices::CartesianIndices{2, Tuple{UnitRange{T}, UnitRange{T}}}
+end
 
 
 function get_sectors(nz, nx, taper=0)
-    sectors = Array{CartesianIndices{2, Tuple{UnitRange{Int},
-                                              UnitRange{Int}}},
-                    1}(undef, 9)
-    # top left
-    sectors[7] = CartesianIndices((         1:taper,              1:taper    ))
-    # left
-    sectors[4] = CartesianIndices((   taper+1:taper+nz,           1:taper    ))
-    # bottom left
-    sectors[1] = CartesianIndices((taper+nz+1:nz+2taper,          1:taper    ))
-    # top
-    sectors[8] = CartesianIndices((         1:taper,        taper+1:taper+nx ))
-    # middle
-    sectors[5] = CartesianIndices((   taper+1:taper+nz,     taper+1:taper+nx ))
-    # bottom
-    sectors[2] = CartesianIndices((taper+nz+1:nz+2taper,    taper+1:taper+nx ))
-    # top right
-    sectors[9] = CartesianIndices((         1:taper,     taper+nx+1:nx+2taper))
-    # right
-    sectors[6] = CartesianIndices((   taper+1:taper+nz,  taper+nx+1:nx+2taper))
-    # bottom right
-    sectors[3] = CartesianIndices((taper+nz+1:nz+2taper, taper+nx+1:nx+2taper))
+    sectors = Array{Sector}(undef, 9)
+    sectors[5] = Sector(5, CartesianIndices((taper+1:taper+nz,
+                                             taper+1:taper+nx)))
+    sectors[7] = Sector(7, CartesianIndices((1:taper,
+                                             1:taper)))
+    sectors[4] = Sector(4, CartesianIndices((taper+1:taper+nz,
+                                             1:taper)))
+    sectors[1] = Sector(1, CartesianIndices((taper+nz+1:nz+2taper,
+                                             1:taper)))
+    sectors[8] = Sector(8, CartesianIndices((1:taper,
+                                             taper+1:taper+nx)))
+    sectors[2] = Sector(2, CartesianIndices((taper+nz+1:nz+2taper,
+                                             taper+1:taper+nx)))
+    sectors[9] = Sector(9, CartesianIndices((1:taper,
+                                             taper+nx+1:nx+2taper)))
+    sectors[6] = Sector(6, CartesianIndices((taper+1:taper+nz,
+                                             taper+nx+1:nx+2taper)))
+    sectors[3] = Sector(3, CartesianIndices((taper+nz+1:nz+2taper,
+                                             taper+nx+1:nx+2taper)))
     return(sectors)
 end
 
 
-function propagate_absorb(grid, P, v, signal, S)  # rewrite as source struct
+
+function propagate_absorb(grid, P, v, signal)  # rewrite as source struct
     @unpack h, Δt, nz, nx, nt, taper = grid
-    att_coef = 0.0015
     Δtoh² = Δt/h^2
-    borders = get_sectors(nz, nx, taper)[(1:end .!= 5) .&
-                                         (1:end .!= 8)]
-    borderids = collect(1:9)[(1:end .!= 5) .&
-                             (1:end .!= 8)]
+    borders = get_sectors(nz, nx, taper)[(1:end .!= 5)]
 
     # time loop, order is important
     for timeiter in eachindex(1:nt)
@@ -137,16 +145,16 @@ function propagate_absorb(grid, P, v, signal, S)  # rewrite as source struct
         new_P = @view P[:,:,new_t]
 
         # adding signal to field before iteration
-        if timeiter <= size(signal, 1)
-            cur_P[S] = signal[timeiter]
+        if timeiter <= size(signal.signature, 1)
+            cur_P[signal.position] = signal.signature[timeiter]
         end
 
         # attenuating current and old iteration borders
-        for B in eachindex(borders)
-            @threads for Iv in borders[B]
+        for border in borders
+            @threads for Iv in border.indices
                 IP = Iv + I∇²r
-                dist = nearest_border_distance(v, B, Iv)
-                att = attenuation_factor(taper, dist, att_coef)
+                dist = nearest_border_distance(v, border.id, Iv)
+                att = attenuation_factor(taper, dist)
                 cur_P[IP] *= att
                 old_P[IP] *= att
             end
