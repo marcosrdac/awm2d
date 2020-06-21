@@ -1,0 +1,4 @@
+  - salvar os passos temporais da modelagem num arquivo binario;
+  - gerar dado sintético;
+  - fazer a reversa;
+  - condição de imagem (multiplica os bagui)

@@ -2,46 +2,119 @@ using Base.Threads
 using Parameters
 using StaticArrays
 
+"""
+    TAPER
+The length of the tapering layer used.
+"""
+const TAPER = 60
+
+
+"""
+    ATTENUATION_COEFICIENT
+The positive attenuation coefficient used in exponential formula for getting 
+attenuation factors for pressure field modeling.
+"""
+const ATTENUATION_COEFICIENT = 0.0035
+
+
+"""
+    ∇²
+The nine-stencil finite difference laplacian operator over a gaussian curve.
+"""
 const ∇² = @SArray ([1/6.   4/6.  1/6.
                      4/6. -20/6.  4/6.
                      1/6.   4/6.  1/6.])
 
+
+"""
+    ∇²r
+The radius of the laplacian operator used. Useful for padding arrays or getting
+correct offsets.
+"""
 const ∇²r = size(∇², 1)÷2
+
+
+"""
+    I∇²r
+The radius of the laplacian operator used, in cartesian index. Useful for 
+offsetting positions.
+"""
 const I∇²r = CartesianIndex(∇²r, ∇²r)
+
+
+"""
+    I1
+Cartesian index pointing to [1, 1]. Useful for offsetting positions.
+"""
 const I1 = CartesianIndex(1, 1)
-const ATTENUATION_COEFICIENT = 0.0035
 
 
+"""
+    POFFSET
+    Cartesian index of the [0, 0] position in padded  pressure field. Useful for
+offsetting positions.
+"""
+const POFFSET = CartesianIndex(TAPER+∇²r, TAPER+∇²r)
+
+
+"""
+    FDM_Grid(h::T, Δt::T, nz::Int, nx::Int, nt::Int)
+Structure for defining a 2D finite differences grid.
+"""
 struct FDM_Grid{T}
     h::T
     Δt::T
     nz::Int
     nx::Int
     nt::Int
-    taper::Int
 end
 
+
+"""
+    Signal(signature::AbstractArray{T}, position::CartesianIndex{2})
+Structure for defining a source signal.
+"""
 struct Signal{T}
     signature::AbstractArray{T}
     position::CartesianIndex{2}
 end
 
-function h²∇²(cur_P, IP)
+
+"""
+    h²∇²(A, IL)
+Function get the laplacian of a point inside an array. In order to optimize code,
+it actually calculates the laplacian without actually dividing the values by h².
+Then it's a h² laplacian function.
+"""
+function h²∇²(A, IL)
     global ∇², ∇²r, I∇²r, I1
-    result = zero(eltype(cur_P))
+    result = zero(eltype(A))
     @inbounds for I in CartesianIndices(∇²)
-        J = IP - I∇²r - I1 + I
-        result += cur_P[J] * ∇²[I]
+        J = IL - I∇²r - I1 + I
+        result += A[J] * ∇²[I]
     end
     return result
 end
 
 
+"""
+    new_p(IP, Iv, cur_P, old_P, v, Δtoh²)
+Function that calculates the next P value at point IP in pressure field,
+considering propagation velocity at that point v[Iv]; cur_P and old_P are,
+respectively, the current pressure field and old pressure field arrays; Δtoh²
+is the relation Δt/h² used in the modeling process.
+"""
 function new_p(IP, Iv, cur_P, old_P, v, Δtoh²)
     2*cur_P[IP] - old_P[IP] + v[Iv]^2 * Δtoh² * h²∇²(cur_P, IP)
 end
 
+
+"""
+    function nearest_border_distance(A, border, R)
+Add description...
+"""
 function nearest_border_distance(A, border, R)
+    # orthogonal
     if border === 4      R[2]
     elseif border === 8  R[1]
     elseif border === 2  size(A, 1)-R[1]+1
@@ -56,21 +129,22 @@ function nearest_border_distance(A, border, R)
 end
 
 
-# for testing in python return(exp(-(0.0035*x))
-function attenuation_factor(taper, dist)
-    exp(-(ATTENUATION_COEFICIENT*(taper-dist))^2)
+"""
+    attenuation_factor(dist)
+Add description...
+"""
+function attenuation_factor(dist)
+    global ATTENUATION_COEFICIENT, TAPER
+    # for testing in python return(exp(-(0.0035*x))
+    exp(-(ATTENUATION_COEFICIENT*(TAPER-dist))^2)
 end
 
-# saved of this plague
-#function new_attenuated_p(IP, Iv, cur_P, old_P, v, Δtoh², taper, att_coef, border::Integer=1)
-#    dist = nearest_border_distance(v, border, Iv)
-#    att = attenuation_factor(taper, dist, att_coef)
-#
-#    att * (2*cur_P[IP] - att * old_P[IP] + v[Iv]^2 * Δtoh² * h²∇²(cur_P, IP))
-#end
 
-
-function propagate(grid, P, v, signal)
+"""
+    propagate_pure(grid, P, v, signal)
+Add description...
+"""
+function propagate_pure(grid, P, v, signal)
     @unpack h, Δt, nz, nx, nt = grid
     Δtoh² = Δt/h^2
     # time loop, order is important
@@ -98,12 +172,21 @@ function propagate(grid, P, v, signal)
 end
 
 
+"""
+    Sector(id::T, indices::CartesianIndices{2, Tuple{UnitRange{T},
+                                                     UnitRange{T}}})
+Add description...
+"""
 struct Sector{T}
-    id::T  # THIS WHAS THE PROBLEM: SETTING id TO Integer
+    id::T
     indices::CartesianIndices{2, Tuple{UnitRange{T}, UnitRange{T}}}
 end
 
 
+"""
+    get_sectors(nz, nx, taper=0)
+Add description...
+"""
 function get_sectors(nz, nx, taper=0)
     sectors = Array{Sector}(undef, 9)
     sectors[5] = Sector(5, CartesianIndices((taper+1:taper+nz,
@@ -128,11 +211,15 @@ function get_sectors(nz, nx, taper=0)
 end
 
 
-
-function propagate_absorb(grid, P, v, signal)  # rewrite as source struct
-    @unpack h, Δt, nz, nx, nt, taper = grid
+"""
+    propagate_absorb(grid, P, v, signal)
+Add description...
+"""
+function propagate_absorb(grid, P, v, signal)
+    global TAPER
+    @unpack h, Δt, nz, nx, nt = grid
     Δtoh² = Δt/h^2
-    borders = get_sectors(nz, nx, taper)[(1:end .!= 5)]
+    borders = get_sectors(nz, nx, TAPER)[(1:end .!= 5)]
 
     # time loop, order is important
     for timeiter in eachindex(1:nt)
@@ -154,7 +241,7 @@ function propagate_absorb(grid, P, v, signal)  # rewrite as source struct
             @threads for Iv in border.indices
                 IP = Iv + I∇²r
                 dist = nearest_border_distance(v, border.id, Iv)
-                att = attenuation_factor(taper, dist)
+                att = attenuation_factor(dist)
                 cur_P[IP] *= att
                 old_P[IP] *= att
             end
@@ -167,8 +254,6 @@ function propagate_absorb(grid, P, v, signal)  # rewrite as source struct
         end
     end
 end
-
-
 
 
 

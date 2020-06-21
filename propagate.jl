@@ -4,10 +4,6 @@ include("./reff.jl")
 println("Number of threads = $(nthreads())")
 
 
-const TAPER = 60
-const POFFSET = CartesianIndex(TAPER+∇²r, TAPER+∇²r)
-
-
 # mesh and solving parameters
 begin
     h  = 1.0 # km
@@ -15,7 +11,7 @@ begin
     NX = 321
     NZ = 321
     NT = 2700
-    grid = FDM_Grid(h, Δt, NZ, NX, NT, TAPER)
+    grid = FDM_Grid(h, Δt, NZ, NX, NT)
 end
 
 
@@ -23,9 +19,9 @@ end
 begin
     H1 = (2*NZ)÷8
     H2 = (3*NZ)÷8
-    V1 = 3.
-    V2 = 4.
-    V3 = 5.
+    V1 = 3. # km/s
+    V2 = 4. # km/s
+    V3 = 5. # km/s
 
     # reflectors position
     z1 = H1
@@ -68,20 +64,26 @@ begin
     _P = pad_zeros_add_zeros_axis(P0, TAPER+1, 3)
 end
 
-#@time propagate_absorb(grid, _P, _v,  signal)
+
+@time propagate_absorb(grid, _P, _v,  signal)
 #@time propagate(grid, _P, _v,  signal, S)
 
 
-using BenchmarkTools
+#using BenchmarkTools
 ## runs 6-7 times, be careful
 #print("Propagate absorb ")
-@btime propagate_absorb($grid, $_P, $_v,  $signal)
+#@btime propagate_absorb($grid, $_P, $_v,  $signal)
 #print("Propagate pure ")
-#@btime propagate($grid, $_P, $_v,  $signal, $S)
+#@btime propagate_pure($grid, $_P, $_v,  $signal, $S)
+
+
 
 
 using PyPlot
+
 #plt.imshow(_P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
-plt.imshow(_P[:, :, 1];vmin=-.2, vmax=.2)
+#plt.imshow(_P[:, :, 1]; vmin=-.2, vmax=.2)
+plt.imshow(_P[:, :, 1])
+
 plt.colorbar()
 plt.show()
