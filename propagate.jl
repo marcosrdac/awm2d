@@ -1,8 +1,6 @@
 using InteractiveUtils
 include("./reff.jl")
 
-println("Number of threads = $(nthreads())")
-
 
 # mesh and solving parameters
 begin
@@ -28,10 +26,10 @@ begin
     z2 = z1+H2
 
     # actually defining velocity field
-    v0 = Array{Float64}(undef, (NZ,NX))
-    v0[   1:z1,  1:end] .= V1
-    v0[z1+1:z2,  1:end] .= V2
-    v0[z2+1:end, 1:end] .= V3
+    v = Array{Float64}(undef, (NZ,NX))
+    v[   1:z1,  1:end] .= V1
+    v[z1+1:z2,  1:end] .= V2
+    v[z2+1:end, 1:end] .= V3
 end
 
 
@@ -45,45 +43,46 @@ begin
     elseif array === "endon"  position = CartesianIndex(1, 1)
     elseif array === "center" position = CartesianIndex(NZ÷2, NX÷2)
     end
-    position += POFFSET
     signal = Signal(signature, position)
 end
 
 
 # starting pressure field
 begin
-    P0 = zero(v0)
+    P0 = zero(v)
     #P0[1,1] = 1      # endon test
     #P0[1, NX÷2] = 1  # split test
 end
 
 
-# padding arrays, allocating 2 more times for pressure field
-begin
-    _v = pad_extremes(v0, TAPER)
-    _P = pad_zeros_add_zeros_axis(P0, TAPER+1, 3)
-end
+## padding arrays, allocating 2 more times for pressure field
+#begin
+#    _v = pad_extremes(v, TAPER)
+#    _P = pad_zeros_add_axes(P0, TAPER+1, 3)
+#end
 
 
-@time propagate_absorb(grid, _P, _v,  signal)
-#@time propagate(grid, _P, _v,  signal, S)
+#@time propagate_absorb(grid, _P, _v,  signal)
+@time P = propagate_save(grid, P0, v,  signal)
+#@time propagate_absorb(grid, _P, _v,  signal)
 
 
-#using BenchmarkTools
-## runs 6-7 times, be careful
+using BenchmarkTools
+### runs 6-7 times, be careful
 #print("Propagate absorb ")
-#@btime propagate_absorb($grid, $_P, $_v,  $signal)
+#@btime propagate_absorb($grid, $_P, $_v,  $signal)  # 10.986
 #print("Propagate pure ")
-#@btime propagate_pure($grid, $_P, $_v,  $signal, $S)
+#@btime propagate_pure($grid, $_P, $_v,  $signal)
 
 
 
 
 using PyPlot
 
-#plt.imshow(_P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
-#plt.imshow(_P[:, :, 1]; vmin=-.2, vmax=.2)
-plt.imshow(_P[:, :, 1])
+#plt.imshow(P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
+#plt.imshow(P[:, :, 1]; vmin=-.2, vmax=.2)
+#plt.imshow(P[:, :, 1])
+plt.imshow(P[:, :])
 
 plt.colorbar()
 plt.show()
