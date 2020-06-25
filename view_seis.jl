@@ -11,6 +11,6 @@ A = reshape(A, shape)
 close(io)
 
 #plt.imshow(A[1300:end, :]; aspect="auto", vmax=.1)
-plt.imshow(A[:, :]; aspect="auto", vmax=.1)
+plt.imshow(A[:, :]; aspect="auto", vmin=-.0058, vmax=.0058)
 plt.colorbar()
 plt.show()

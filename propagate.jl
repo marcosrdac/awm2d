@@ -8,7 +8,7 @@ begin
     Δt = .001 # s
     NX = 321
     NZ = 321
-    NT = 2700
+    NT = 5000
     grid = FDM_Grid(h, Δt, NZ, NX, NT)
 end
 
@@ -35,7 +35,7 @@ end
 
 # signal parameters
 begin
-    ν = 3 # Hz
+    ν = 6 # Hz
     array = "split"
     signature = rickerwave(ν, Δt)
 
@@ -50,8 +50,6 @@ end
 # starting pressure field
 begin
     P0 = zero(v)
-    #P0[1,1] = 1      # endon test
-    #P0[1, NX÷2] = 1  # split test
 end
 
 
