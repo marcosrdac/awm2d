@@ -393,8 +393,8 @@ function propagate_save(grid, P0, v, signal;
         saved_seis = mmap(io, Array{Float64, saved_ndims}, saved_dims)
         saved_seis[1,:] .= P[1,:,1]
     else
-        savedP = mmap(io, Array{Float64, saved_ndims}, saved_dims)
-        savedP[:,:,1] .= P[:,:,1]
+        saved_P = mmap(io, Array{Float64, saved_ndims}, saved_dims)
+        saved_P[:,:,1] .= P[:,:,1]
     end
 
     close(io)

@@ -6,8 +6,8 @@ include("./reff.jl")
 begin
     h  = 1.0 # km
     Δt = .001 # s
-    NX = 321
-    NZ = 321
+    NX = 21
+    NZ = 21
     NT = 5000
     grid = FDM_Grid(h, Δt, NZ, NX, NT)
 end
@@ -39,9 +39,9 @@ begin
     array = "split"
     signature = rickerwave(ν, Δt)
 
-    if array === "split"      position = CartesianIndex(1, NX÷2)
+    if array === "split"      position = CartesianIndex(1, NX÷2+1)
     elseif array === "endon"  position = CartesianIndex(1, 1)
-    elseif array === "center" position = CartesianIndex(NZ÷2, NX÷2)
+    elseif array === "center" position = CartesianIndex(NZ÷2+1, NX÷2+1)
     end
     signal = Signal(signature, position)
 end
@@ -62,8 +62,8 @@ end
 
 #@time propagate_absorb(grid, _P, _v,  signal)
 #@time P = propagate_save(grid, P0, v,  signal; filename="P.bin")
-#@time propagate_save(grid, P0, v, signal; filename="P.bin")
-@time propagate_save(grid, P0, v, signal; filename="seis.bin", only_seis=true)
+@time propagate_save(grid, P0, v, signal; filename="data/P.bin")
+#@time propagate_save(grid, P0, v, signal; filename="data/seis.bin", only_seis=true)
 #@time save_seis(grid, P0, v, signal; filename="seis.bin")
 #@time propagate_absorb(grid, _P, _v,  signal)
 

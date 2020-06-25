@@ -2,6 +2,11 @@ using PyPlot
 using Mmap: mmap
 
 
+#filename = "data/seis.bin"
+filename = "data/P.bin"
+nt = 300
+
+
 function open_mmap(filename::String, mode::String="r")
     io = open(filename, mode)
     _ndims = read(io, Int64)
@@ -12,11 +17,13 @@ function open_mmap(filename::String, mode::String="r")
 end
 
 
-#P = open_mmap("P.bin", "r")
-#plt.imshow(P[:,:,1500])
+if occursin("P", filename)
+    P = open_mmap("P.bin", "r")
+    plt.imshow(P[:,:,nt])
+elif occursin("seis", filename)
+    seis = open_mmap("seis.bin", "r")
+    plt.imshow(seis; aspect="auto", vmin=-.006, vmax=.006)
+end
 
-
-seis = open_mmap("seis.bin", "r")
-plt.imshow(seis; aspect="auto", vmin=-.006, vmax=.006)
 
 plt.show()
