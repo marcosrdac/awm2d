@@ -35,7 +35,7 @@ end
 
 # signal parameters
 begin
-    ν = 6 # Hz
+    ν = 3 # Hz
     array = "split"
     signature = rickerwave(ν, Δt)
 
@@ -63,11 +63,13 @@ end
 
 
 #@time propagate_absorb(grid, _P, _v,  signal)
-@time P = propagate_save(grid, P0, v,  signal)
+#@time P = propagate_save(grid, P0, v,  signal; filename="P.bin")
+#@time propagate_save(grid, P0, v, signal; filename="P.bin")
+@time save_seis(grid, P0, v, signal; filename="seis.bin")
 #@time propagate_absorb(grid, _P, _v,  signal)
 
 
-using BenchmarkTools
+#using BenchmarkTools
 ### runs 6-7 times, be careful
 #print("Propagate absorb ")
 #@btime propagate_absorb($grid, $_P, $_v,  $signal)  # 10.986
@@ -77,12 +79,12 @@ using BenchmarkTools
 
 
 
-using PyPlot
-
-#plt.imshow(P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
-#plt.imshow(P[:, :, 1]; vmin=-.2, vmax=.2)
-#plt.imshow(P[:, :, 1])
-plt.imshow(P[:, :])
-
-plt.colorbar()
-plt.show()
+#using PyPlot
+#
+##plt.imshow(P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
+##plt.imshow(P[:, :, 1]; vmin=-.2, vmax=.2)
+##plt.imshow(P[:, :, 1])
+##plt.imshow(P[:, :])
+#
+#plt.colorbar()
+#plt.show()

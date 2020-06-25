@@ -22,8 +22,8 @@ const ATTENUATION_COEFICIENT = 0.0035
 The nine-stencil finite difference laplacian operator over a gaussian curve.
 """
 const ∇² = @SArray ([1/6.   4/6.  1/6.
-                    4/6. -20/6.  4/6.
-                    1/6.   4/6.  1/6.])
+                     4/6. -20/6.  4/6.
+                     1/6.   4/6.  1/6.])
 
 
 """
@@ -54,7 +54,15 @@ const I1 = CartesianIndex(1, 1)
     Cartesian index of the [0, 0] position in padded  pressure field. Useful for
 offsetting positions.
 """
-const POFFSET = CartesianIndex(TAPER+∇²r, TAPER+∇²r)
+const POFFSET = TAPER+∇²r
+
+
+"""
+    IPOFFSET
+    Cartesian index of the [0, 0] position in padded  pressure field. Useful for
+offsetting positions.
+"""
+const IPOFFSET = CartesianIndex(POFFSET, POFFSET)
 
 
 """
@@ -111,11 +119,11 @@ function pad_zeros_add_axes(A::AbstractArray,
                                 padding::Integer=1,
                                 dim::Integer=1)
     _A = zeros(eltype(A), (size(P0, 1)+2*padding,
-                        size(P0, 2)+2*padding,
-                        dim))
+                           size(P0, 2)+2*padding,
+                           dim))
     _A[1+padding:end-padding,
-    1+padding:end-padding,
-    1] .= A
+       1+padding:end-padding,
+       1] .= A
     _A
 end
 
@@ -304,12 +312,12 @@ end
 Add description...
 """
 function propagate(grid, P0, v, signal)
-    global TAPER, POFFSET
+    global TAPER, POFFSET, IPOFFSET
     @unpack h, Δt, nz, nx, nt = grid
     Δtoh² = Δt/h^2
 
     _v = pad_extremes(v, TAPER)
-    _signal = offset_signal(signal, POFFSET)
+    _signal = offset_signal(signal, IPOFFSET)
     _P = pad_zeros_add_axes(P0, TAPER+1, 3)
 
     borders = get_taper_sectors(nz, nx, TAPER)
@@ -349,7 +357,8 @@ function propagate(grid, P0, v, signal)
     end
 
     end_t = mod1(nt+1, 3)
-    return(_P[:,:,end_t])
+    return(_P[1+(TAPER+1):end-(TAPER+1), 1+(TAPER+1):end-(TAPER+1), end_t])
+    #return(_P[:,:,end_t])
 end
 
 
@@ -357,16 +366,22 @@ end
     propagate_save(grid, P, v, signal)
 Add description...
 """
-function propagate_save(grid, P0, v, signal)
-    global TAPER, POFFSET
+function propagate_save(grid, P0, v, signal; filename::String)
+    global TAPER, POFFSET, IPOFFSET
     @unpack h, Δt, nz, nx, nt = grid
     Δtoh² = Δt/h^2
+    borders = get_taper_sectors(nz, nx, TAPER)
 
     _v = pad_extremes(v, TAPER)
-    _signal = offset_signal(signal, POFFSET)
+    _signal = offset_signal(signal, IPOFFSET)
     _P = pad_zeros_add_axes(P0, TAPER+1, 3)
 
-    borders = get_taper_sectors(nz, nx, TAPER)
+    # differs
+    io = open(filename, "w")
+    write(io, size(v)..., nt)
+    cur_P = @view _P[:,:,1]
+    write(io, cur_P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET])
+
 
     # time loop, order is important
     for timeiter in eachindex(1:nt)
@@ -400,8 +415,76 @@ function propagate_save(grid, P0, v, signal)
             IP = Iv + I∇²r
             new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, Δtoh²)
         end
+
+        # differs
+        write(io, new_P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET])
     end
 
-    end_t = mod1(nt+1, 3)
-    return(_P[:,:,end_t])
+    close(io)
+end
+
+
+"""
+    save_seis(grid, P, v, signal)
+Add description...
+"""
+function save_seis(grid, P0, v, signal; filename::String)
+    global TAPER, POFFSET, IPOFFSET
+    @unpack h, Δt, nz, nx, nt = grid
+    Δtoh² = Δt/h^2
+    borders = get_taper_sectors(nz, nx, TAPER)
+    seis = Array{Float64, 2}(undef, (nt, nx))
+
+    _v = pad_extremes(v, TAPER)
+    _signal = offset_signal(signal, IPOFFSET)
+    _P = pad_zeros_add_axes(P0, TAPER+1, 3)
+
+    # differs
+    io = open(filename, "w")
+
+    write(io, size(seis)...)
+
+    cur_P = @view _P[:,:, 1]
+    seis[1, :] = cur_P[1+POFFSET, 1+POFFSET:end-POFFSET]
+
+    # time loop, order is important
+    for timeiter in eachindex(1:nt)
+        new_t = mod1(timeiter+1, 3)
+        cur_t = mod1(timeiter,   3)
+        old_t = mod1(timeiter-1, 3)
+
+        old_P = @view _P[:,:,old_t]
+        cur_P = @view _P[:,:,cur_t]
+        new_P = @view _P[:,:,new_t]
+
+        # attenuating current and old iteration borders
+        for border in borders
+            @threads for Iv in border.indices
+                IP = Iv + I∇²r
+                dist = nearest_border_distance(_v, border.id, Iv)
+                att = attenuation_factor(dist)
+                cur_P[IP] *= att
+                old_P[IP] *= att
+            end
+        end
+
+        # adding signal to field before iteration
+        if timeiter <= length(_signal.signature)
+            cur_P[_signal.position] = _signal.signature[timeiter]
+        end
+
+
+        # spacial loop, order is not important
+        @threads for Iv in CartesianIndices(_v)
+            IP = Iv + I∇²r
+            new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, Δtoh²)
+        end
+
+        # differs
+        seis[timeiter, :] = new_P[1+POFFSET,
+                                  1+POFFSET:end-POFFSET]
+    end
+
+    write(io, seis)
+    close(io)
 end
