@@ -23,3 +23,9 @@ Without dealing with absorption layers
 
 Observed:
   Extra allocated memory is a function of time
+
+
+with "if only_seis", always calculating coefs
+321 321 5000 46 s
+with "if only_seis", calculating coefs only once
+321 321 5000 31 s

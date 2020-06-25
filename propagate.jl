@@ -6,8 +6,8 @@ include("./reff.jl")
 begin
     h  = 1.0 # km
     Δt = .001 # s
-    NX = 21
-    NZ = 21
+    NX = 321
+    NZ = 321
     NT = 5000
     grid = FDM_Grid(h, Δt, NZ, NX, NT)
 end
@@ -62,19 +62,21 @@ end
 
 #@time propagate_absorb(grid, _P, _v,  signal)
 #@time P = propagate_save(grid, P0, v,  signal; filename="P.bin")
-@time propagate_save(grid, P0, v, signal; filename="data/P.bin")
+#@time propagate_save(grid, P0, v, signal; filename="data/P.bin")
 #@time propagate_save(grid, P0, v, signal; filename="data/seis.bin", only_seis=true)
 #@time save_seis(grid, P0, v, signal; filename="seis.bin")
 #@time propagate_absorb(grid, _P, _v,  signal)
 
 
-#using BenchmarkTools
+using BenchmarkTools
 ### runs 6-7 times, be careful
 #print("Propagate absorb ")
+#@btime propagate($grid, $P0, $v,  $signal)  # 10.986
 #@btime propagate_absorb($grid, $_P, $_v,  $signal)  # 10.986
 #print("Propagate pure ")
 #@btime propagate_pure($grid, $_P, $_v,  $signal)
 
+@btime propagate_save($grid, $P0, $v, $signal; filename=$"data/P.bin")
 
 
 

@@ -227,6 +227,14 @@ function attenuation_factor(dist)
     exp(-(ATTENUATION_COEFICIENT*(TAPER-dist))^2)
 end
 
+function get_attenuation_factors(TAPER)
+    factors = Array{Float64, 1}(undef, TAPER)
+    for dist in eachindex(factors)
+        factors[dist] = attenuation_factor(dist)
+    end
+    return(factors)
+end
+
 
 """
     propagate_pure(grid, P, v, signal)
@@ -322,6 +330,7 @@ function propagate(grid, P0, v, signal)
     _P = pad_zeros_add_axes(P0, TAPER+1, 3)
 
     borders = get_taper_sectors(nz, nx, TAPER)
+    attenuation_factors = get_attenuation_factors(TAPER)
 
     # time loop, order is important
     for timeiter in eachindex(1:nt)
@@ -338,9 +347,8 @@ function propagate(grid, P0, v, signal)
             @threads for Iv in border.indices
                 IP = Iv + I∇²r
                 dist = nearest_border_distance(_v, border.id, Iv)
-                att = attenuation_factor(dist)
-                cur_P[IP] *= att
-                old_P[IP] *= att
+                cur_P[IP] *= attenuation_factors[dist]
+                old_P[IP] *= attenuation_factors[dist]
             end
         end
 
@@ -370,6 +378,7 @@ function propagate_save(grid, P0, v, signal;
     global TAPER, POFFSET, IPOFFSET
     @unpack h, Δt, nz, nx, nt = grid
     borders = get_taper_sectors(nz, nx, TAPER)
+    attenuation_factors = get_attenuation_factors(TAPER)
     Δtoh² = Δt/h^2
 
     _v = pad_extremes(v, TAPER)
@@ -414,9 +423,8 @@ function propagate_save(grid, P0, v, signal;
             @threads for Iv in border.indices
                 IP = Iv + I∇²r
                 dist = nearest_border_distance(_v, border.id, Iv)
-                att = attenuation_factor(dist)
-                cur_P[IP] *= att
-                old_P[IP] *= att
+                cur_P[IP] *= attenuation_factors[dist]
+                old_P[IP] *= attenuation_factors[dist]
             end
         end
 
