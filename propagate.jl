@@ -63,7 +63,8 @@ end
 #@time propagate_absorb(grid, _P, _v,  signal)
 #@time P = propagate_save(grid, P0, v,  signal; filename="P.bin")
 #@time propagate_save(grid, P0, v, signal; filename="P.bin")
-@time save_seis(grid, P0, v, signal; filename="seis.bin")
+@time propagate_save(grid, P0, v, signal; filename="seis.bin", only_seis=true)
+#@time save_seis(grid, P0, v, signal; filename="seis.bin")
 #@time propagate_absorb(grid, _P, _v,  signal)
 
 

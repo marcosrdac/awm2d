@@ -1,4 +1,5 @@
 using Base.Threads
+using Mmap: mmap
 using Parameters
 using StaticArrays
 
@@ -362,32 +363,47 @@ function propagate(grid, P0, v, signal)
 end
 
 
-"""
-    propagate_save(grid, P, v, signal)
-Add description...
-"""
-function propagate_save(grid, P0, v, signal; filename::String)
+function propagate_save(grid, P0, v, signal;
+                        filename::String,
+                        only_seis::Bool=false,
+                        return_value=false)
     global TAPER, POFFSET, IPOFFSET
     @unpack h, Δt, nz, nx, nt = grid
-    Δtoh² = Δt/h^2
     borders = get_taper_sectors(nz, nx, TAPER)
+    Δtoh² = Δt/h^2
 
     _v = pad_extremes(v, TAPER)
     _signal = offset_signal(signal, IPOFFSET)
     _P = pad_zeros_add_axes(P0, TAPER+1, 3)
+    # pressure field of interest
+    P = @view _P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET, :]
 
-    # differs
-    io = open(filename, "w")
-    write(io, size(v)..., nt)
-    cur_P = @view _P[:,:,1]
-    write(io, cur_P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET])
+    if only_seis
+        saved_dims = (nt, nx)
+    else
+        saved_dims = (nz, nx, nt)
+    end
+    saved_ndims = length(saved_dims)
 
+    # setting up disk array for saving output (P_saved)
+    io = open(filename, "w+")
+    write(io, saved_ndims, saved_dims...)
+
+    if only_seis
+        saved_seis = mmap(io, Array{Float64, saved_ndims}, saved_dims)
+        saved_seis[1,:] .= P[1,:,1]
+    else
+        savedP = mmap(io, Array{Float64, saved_ndims}, saved_dims)
+        savedP[:,:,1] .= P[:,:,1]
+    end
+
+    close(io)
 
     # time loop, order is important
-    for timeiter in eachindex(1:nt)
-        new_t = mod1(timeiter+1, 3)
-        cur_t = mod1(timeiter,   3)
-        old_t = mod1(timeiter-1, 3)
+    for timeiter in eachindex(2:nt)
+        new_t = mod1(timeiter,   3)
+        cur_t = mod1(timeiter-1, 3)
+        old_t = mod1(timeiter-2, 3)
 
         old_P = @view _P[:,:,old_t]
         cur_P = @view _P[:,:,cur_t]
@@ -409,18 +425,18 @@ function propagate_save(grid, P0, v, signal; filename::String)
             cur_P[_signal.position] = _signal.signature[timeiter]
         end
 
-
         # spacial loop, order is not important
         @threads for Iv in CartesianIndices(_v)
             IP = Iv + I∇²r
             new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, Δtoh²)
         end
 
-        # differs
-        write(io, new_P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET])
+        if only_seis
+            saved_seis[timeiter,:] .= P[1,:,new_t]
+        else
+            saved_P[:,:,timeiter] .= P[:,:,new_t]
+        end
     end
-
-    close(io)
 end
 
 

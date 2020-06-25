@@ -1,18 +1,22 @@
 using PyPlot
+using Mmap: mmap
 
-io = open("P.bin", "r")
-all_shape = read(io, sizeof(Int)*3)
-all_shape = reinterpret(Int, all_shape)
-all_shape = Tuple(all_shape)
-shape = (all_shape[1], all_shape[2])
-println(shape)
 
-read(io, 2500*sizeof(Float64)*shape[1]*shape[2])
-A = read(io, sizeof(Float64)*shape[1]*shape[2])
-A = reinterpret(Float64, A)
-A = reshape(A, (shape[1], shape[2]))
-close(io)
+function open_mmap(filename::String, mode::String="r")
+    io = open(filename, mode)
+    _ndims = read(io, Int64)
+    _dims = Tuple(read(io, Int64) for i in 1:_ndims)
+    P = mmap(io, Array{Float64, _ndims}, _dims)
+    close(io)
+    return(P)
+end
 
-plt.imshow(A)
+
+#P = open_mmap("P.bin", "r")
+#plt.imshow(P[:,:,1500])
+
+
+seis = open_mmap("seis.bin", "r")
+plt.imshow(seis; aspect="auto", vmin=-.006, vmax=.006)
+
 plt.show()
-
