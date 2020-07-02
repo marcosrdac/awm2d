@@ -29,3 +29,6 @@ with "if only_seis", always calculating coefs
 321 321 5000 46 s
 with "if only_seis", calculating coefs only once
 321 321 5000 31 s
+321 321 2500 15.7 s
+without "ifs", calculating coefs only once
+321 321 5000 32 s (wow)
