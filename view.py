@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # defining parameters
-filename = "data/P_.bin"
+filename = "data/seis.bin"
 nt = 300
 
 # reading file array
@@ -21,7 +21,6 @@ elif "seis" in filename:
                        dtype=np.float64,
                        count=shape[0]*shape[1]*np.float64().itemsize)
     seis = seis.reshape((shape[0], shape[1]), order='F')
-
 
 
 # plotting data

@@ -3,7 +3,7 @@ using Mmap: mmap
 
 
 #filename = "data/seis.bin"
-filename = "data/P.bin"
+filename = "data/seis.bin"
 nt = 300
 
 
@@ -18,10 +18,10 @@ end
 
 
 if occursin("P", filename)
-    P = open_mmap("P.bin", "r")
+    P = open_mmap(filename, "r")
     plt.imshow(P[:,:,nt])
-elif occursin("seis", filename)
-    seis = open_mmap("seis.bin", "r")
+elseif occursin("seis", filename)
+    seis = open_mmap(filename, "r")
     plt.imshow(seis; aspect="auto", vmin=-.006, vmax=.006)
 end
 

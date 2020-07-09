@@ -53,31 +53,14 @@ begin
 end
 
 
-## padding arrays, allocating 2 more times for pressure field
-#begin
-#    _v = pad_extremes(v, TAPER)
-#    _P = pad_zeros_add_axes(P0, TAPER+1, 3)
-#end
+@time propagate(grid, P0, v, signal;
+                     filename="data/seis.bin",
+                     save=true,
+                     only_seis=true)
 
 
-#@time propagate_absorb(grid, _P, _v,  signal)
-#@time P = propagate_save(grid, P0, v,  signal; filename="P.bin")
-#@time propagate_save(grid, P0, v, signal; filename="data/P.bin")
-#@time propagate_save(grid, P0, v, signal; filename="data/seis.bin", only_seis=true)
-#@time save_seis(grid, P0, v, signal; filename="seis.bin")
-#@time propagate_absorb(grid, _P, _v,  signal)
-
-
-using BenchmarkTools
-### runs 6-7 times, be careful
-#print("Propagate absorb ")
-#@btime propagate($grid, $P0, $v,  $signal)  # 10.986
-#@btime propagate_absorb($grid, $_P, $_v,  $signal)  # 10.986
-#print("Propagate pure ")
-#@btime propagate_pure($grid, $_P, $_v,  $signal)
-
-@btime propagate_save($grid, $P0, $v, $signal; filename=$"data/P.bin")
-
+#using BenchmarkTools
+#@btime propagate_save($grid, $P0, $v, $signal; filename=$"data/P.bin")
 
 
 #using PyPlot

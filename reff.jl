@@ -317,10 +317,10 @@ function offset_signal(signal::Signal, offset)
 end
 
 """
-    propagate(grid, P, v, signal)
+    propagate_(grid, P, v, signal)
 Add description...
 """
-function propagate(grid, P0, v, signal)
+function propagate_(grid, P0, v, signal)
     global TAPER, POFFSET, IPOFFSET
     @unpack h, Δt, nz, nx, nt = grid
     Δtoh² = Δt/h^2
@@ -368,83 +368,6 @@ function propagate(grid, P0, v, signal)
     end_t = mod1(nt+1, 3)
     return(_P[1+(TAPER+1):end-(TAPER+1), 1+(TAPER+1):end-(TAPER+1), end_t])
     #return(_P[:,:,end_t])
-end
-
-
-function propagate_save(grid, P0, v, signal;
-                        filename::String,
-                        only_seis::Bool=false,
-                        return_value=false)
-    global TAPER, POFFSET, IPOFFSET
-    @unpack h, Δt, nz, nx, nt = grid
-    borders = get_taper_sectors(nz, nx, TAPER)
-    attenuation_factors = get_attenuation_factors(TAPER)
-    Δtoh² = Δt/h^2
-
-    _v = pad_extremes(v, TAPER)
-    _signal = offset_signal(signal, IPOFFSET)
-    _P = pad_zeros_add_axes(P0, TAPER+1, 3)
-    # pressure field of interest
-    P = @view _P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET, :]
-
-    if only_seis
-        saved_dims = (nt, nx)
-    else
-        saved_dims = (nz, nx, nt)
-    end
-    saved_ndims = length(saved_dims)
-
-    # setting up disk array for saving output (P_saved)
-    io = open(filename, "w+")
-    write(io, saved_ndims, saved_dims...)
-
-    if only_seis
-        saved_seis = mmap(io, Array{Float64, saved_ndims}, saved_dims)
-        saved_seis[1,:] .= P[1,:,1]
-    else
-        saved_P = mmap(io, Array{Float64, saved_ndims}, saved_dims)
-        saved_P[:,:,1] .= P[:,:,1]
-    end
-
-    close(io)
-
-    # time loop, order is important
-    for timeiter in eachindex(2:nt)
-        new_t = mod1(timeiter,   3)
-        cur_t = mod1(timeiter-1, 3)
-        old_t = mod1(timeiter-2, 3)
-
-        old_P = @view _P[:,:,old_t]
-        cur_P = @view _P[:,:,cur_t]
-        new_P = @view _P[:,:,new_t]
-
-        # attenuating current and old iteration borders
-        for border in borders
-            @threads for Iv in border.indices
-                IP = Iv + I∇²r
-                dist = nearest_border_distance(_v, border.id, Iv)
-                cur_P[IP] *= attenuation_factors[dist]
-                old_P[IP] *= attenuation_factors[dist]
-            end
-        end
-
-        # adding signal to field before iteration
-        if timeiter <= length(_signal.signature)
-            cur_P[_signal.position] = _signal.signature[timeiter]
-        end
-
-        # spacial loop, order is not important
-        @threads for Iv in CartesianIndices(_v)
-            IP = Iv + I∇²r
-            new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, Δtoh²)
-        end
-
-        if only_seis
-            saved_seis[timeiter,:] .= P[1,:,new_t]
-        else
-            saved_P[:,:,timeiter] .= P[:,:,new_t]
-        end
-    end
 end
 
 
@@ -511,4 +434,98 @@ function save_seis(grid, P0, v, signal; filename::String)
 
     write(io, seis)
     close(io)
+end
+
+
+function propagate(grid, P0, v, signal;
+                   filename::String="data.bin",
+                   only_seis::Bool=false,
+                   save=true)
+    global TAPER, POFFSET, IPOFFSET
+    @unpack h, Δt, nz, nx, nt = grid
+    borders = get_taper_sectors(nz, nx, TAPER)
+    attenuation_factors = get_attenuation_factors(TAPER)
+    Δtoh² = Δt/h^2
+
+    _v = pad_extremes(v, TAPER)
+    _signal = offset_signal(signal, IPOFFSET)
+    _P = pad_zeros_add_axes(P0, TAPER+1, 3)
+    # pressure field of interest
+    P = @view _P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET, :]
+
+    if only_seis
+        saved_dims = (nt, nx)
+    else
+        saved_dims = (nz, nx, nt)
+    end
+    saved_ndims = length(saved_dims)
+
+    # setting up disk array for saving output (P_saved)
+    if save
+        io = open(filename, "w+")
+        write(io, saved_ndims, saved_dims...)
+        if only_seis
+            saved_seis = mmap(io, Array{Float64, saved_ndims}, saved_dims)
+            saved_seis[1,:] .= P[1,:,1]
+        else
+            saved_P = mmap(io, Array{Float64, saved_ndims}, saved_dims)
+            saved_P[:,:,1] .= P[:,:,1]
+        end
+        close(io)
+    else
+        if only_seis
+            saved_seis = Array{Float64, saved_ndims}(undef, saved_dims...)
+            saved_seis[1,:] .= P[1,:,1]
+        else
+            saved_P = Array{Float64, saved_ndims}(undef, saved_dims...)
+            saved_P[:,:,1] .= P[:,:,1]
+        end
+    end
+
+
+    # time loop, order is important
+    for timeiter in eachindex(2:nt)
+        new_t = mod1(timeiter,   3)
+        cur_t = mod1(timeiter-1, 3)
+        old_t = mod1(timeiter-2, 3)
+
+        old_P = @view _P[:,:,old_t]
+        cur_P = @view _P[:,:,cur_t]
+        new_P = @view _P[:,:,new_t]
+
+        # attenuating current and old iteration borders
+        for border in borders
+            @threads for Iv in border.indices
+                IP = Iv + I∇²r
+                dist = nearest_border_distance(_v, border.id, Iv)
+                cur_P[IP] *= attenuation_factors[dist]
+                old_P[IP] *= attenuation_factors[dist]
+            end
+        end
+
+        # adding signal to field before iteration
+        if timeiter <= length(_signal.signature)
+            cur_P[_signal.position] = _signal.signature[timeiter]
+        end
+
+        # spacial loop, order is not important
+        @threads for Iv in CartesianIndices(_v)
+            IP = Iv + I∇²r
+            new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, Δtoh²)
+        end
+
+        if only_seis
+            saved_seis[timeiter,:] .= P[1,:,new_t]
+        else
+            saved_P[:,:,timeiter] .= P[:,:,new_t]
+        end
+    end
+
+    if ! save
+        if only_seis
+            return(saved_seis)
+        else
+            return(saved_P)
+        end
+    end
 end
