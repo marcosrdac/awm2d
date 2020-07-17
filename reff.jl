@@ -84,14 +84,14 @@ end
     Signal(signature::AbstractArray{T}, position::CartesianIndex{2})
 Structure for defining a source signal.
 """
-abstract type Signal end
+abstract type AbstractSignal end
 
-struct Signal1D{T} <: Signal
+struct Signal1D{T} <: AbstractSignal
     signature::AbstractArray{T, 1}
     position::CartesianIndex{2}
 end
 
-struct Signal2D{T} <: Signal
+struct Signal2D{T} <: AbstractSignal
     signature::AbstractArray{T, 2}
     position::CartesianIndex{2}
 end
@@ -320,7 +320,7 @@ function get_taper_sectors(nz, nx, taper)
 end
 
 
-function offset_signal(signal::Signal, offset)
+function offset_signal(signal::AbstractSignal, offset)
     _signal = typeof(signal)(signal.signature,
                              signal.position + offset)
 end
