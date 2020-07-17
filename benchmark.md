@@ -34,18 +34,18 @@ without "ifs", calculating coefs only once
 321 321 5000 32 s (wow)
 
 
-Propagation times (refference)
-(321,321,3000) pure:             5.5 s
-(321,321,3000) 0 tpr, ! att.:    6.0 s -> 8% slwr than pure
-(400,400,3000) pure:             8.5 s
-(321,321,3000) 60 tpr, ! att.:   9.5 s
-(321,321,3000) 60 tpr, att.:     12.3 s
+Propagation times (refference) (!compilation)
+(321,321,3000) pure:                5.5 s
+(321,321,3000) 0 tpr, !att.:        6.0 s   -> 8% slwr than pure
+(400,400,3000) pure:                8.5 s
+(321,321,3000) 60 tpr, !att.:       9.5 s   -> 11% slwr than pure
+(321,321,3000) 60 tpr, att.:        12.3 s  -> 29% slwr due to att
 
 new w. 60 tpr
-(321,321,3000) ! saving to file:            12.4 s
-(321,321,3000) saving seis to file in SSD:  12.5 s
-(321,321,3000) saving seis to file in HDD:  12,5 s
-(321,321,3000) saving snaps to file in SSD: 18,8 s (21 s before)
-(321,321,3000) saving snaps to file in HDD: 19,8 s
+(321,321,3000) !saving:             12.4 s -> turned to 17 s one day before :o
+(321,321,3000) saving seis to SSD:  12.5 s
+(321,321,3000) saving seis to HDD:  12,5 s
+(321,321,3000) saving snaps to SSD: 18,8 s (21 s before)
+(321,321,3000) saving snaps to HDD: 19,8 s
 
 So I'm using my HDD :S

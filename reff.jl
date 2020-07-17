@@ -84,8 +84,15 @@ end
     Signal(signature::AbstractArray{T}, position::CartesianIndex{2})
 Structure for defining a source signal.
 """
-struct Signal{T}
-    signature::AbstractArray{T}
+abstract type Signal end
+
+struct Signal1D{T} <: Signal
+    signature::AbstractArray{T, 1}
+    position::CartesianIndex{2}
+end
+
+struct Signal2D{T} <: Signal
+    signature::AbstractArray{T, 2}
     position::CartesianIndex{2}
 end
 
@@ -314,8 +321,8 @@ end
 
 
 function offset_signal(signal::Signal, offset)
-    _signal = Signal(signal.signature,
-                     signal.position + offset)
+    _signal = typeof(signal)(signal.signature,
+                             signal.position + offset)
 end
 
 """
@@ -454,7 +461,7 @@ function save_seis(grid, P0, v, signal; filename::String)
 end
 
 
-function propagate(grid, P0, v, signal;
+function propagate(grid, P0, v, signal::Signal1D;
                    filename::String="data.bin",
                    only_seis::Bool=false,
                    save=true)
@@ -550,7 +557,10 @@ function propagate(grid, P0, v, signal;
 end
 
 
-function test_taper_seis(grid, P0, v, signal)
+function propagate(grid, P0, v, signal::Signal2D;
+                   filename::String="data.bin",
+                   only_seis::Bool=false,
+                   save=true)
     global TAPER, POFFSET, IPOFFSET
     @unpack h, Δt, nz, nx, nt = grid
     borders = get_taper_sectors(nz, nx, TAPER)
@@ -563,9 +573,34 @@ function test_taper_seis(grid, P0, v, signal)
     # pressure field of interest
     P = @view _P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET, :]
 
-    saved_dims = (nt, nx)
-    saved_seis = Array{Float64}(undef, saved_dims...)
-    saved_seis[1,:] .= P[1,:,1]
+    if only_seis
+        saved_dims = (nt, nx)
+    else
+        saved_dims = (nz, nx, nt)
+    end
+    saved_ndims = length(saved_dims)
+
+    # setting up disk array for saving output (P_saved)
+    if save
+        io = open(filename, "w+")
+        write(io, saved_ndims, saved_dims...)
+        if only_seis
+            saved_seis = mmap(io, Array{Float64, saved_ndims}, saved_dims)
+            saved_seis[1,:] .= P[1,:,1]
+        else
+            saved_P = mmap(io, Array{Float64, saved_ndims}, saved_dims)
+            saved_P[:,:,1] .= P[:,:,1]
+        end
+        close(io)
+    else
+        if only_seis
+            saved_seis = Array{Float64, saved_ndims}(undef, saved_dims...)
+            saved_seis[1,:] .= P[1,:,1]
+        else
+            saved_P = Array{Float64, saved_ndims}(undef, saved_dims...)
+            saved_P[:,:,1] .= P[:,:,1]
+        end
+    end
 
 
     # time loop, order is important
@@ -599,8 +634,20 @@ function test_taper_seis(grid, P0, v, signal)
             new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, Δtoh²)
         end
 
-        saved_seis[timeiter,:] .= P[1,:,new_t]
+        if save
+            if only_seis
+                saved_seis[timeiter,:] .= P[1,:,new_t]
+            else
+                saved_P[:,:,timeiter] .= P[:,:,new_t]
+            end
+        end
     end
 
-    return(saved_seis)
+    if ! save
+        if only_seis
+            return(saved_seis)
+        else
+            return(saved_P)
+        end
+    end
 end

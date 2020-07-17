@@ -6,10 +6,10 @@ include("./reff.jl")
 begin
     h  = 1.0 # km
     Δt = .001 # s
-    NX = 321
-    NZ = 321
-    # NX = 400
-    # NZ = 400
+    # NX = 321
+    # NZ = 321
+    NX = 401
+    NZ = 401
     NT = 3000
     grid = FDM_Grid(h, Δt, NZ, NX, NT)
 end
@@ -45,7 +45,7 @@ begin
     elseif array === "endon"  position = CartesianIndex(1, 1)
     elseif array === "center" position = CartesianIndex(NZ÷2+1, NX÷2+1)
     end
-    signal = Signal(signature, position)
+    signal = Signal1D(signature, position)
 end
 
 
@@ -56,22 +56,19 @@ end
 
 #@time P = propagate_absorb(grid, P0, v, signal)
 #@time P = propagate(grid, P0, v, signal;
-#                   save=true,
+#                   save=false,
 #                   filename="data/seis.bin",
 #                   only_seis=true)
 
 using BenchmarkTools
-#@btime propagate_save($grid, $P0, $v, $signal; filename=$"data/P.bin")
-#@btime P = propagate_absorb($grid, $P0, $v, $signal)
-save=true
-filename="tmpssd/P.bin"
-only_seis=false
-# filename="data/seis.bin"
-# only_seis=true
-@btime P = propagate($grid, $P0, $v, $signal;
-                     save=$save,
-                     filename=$filename,
-                     only_seis=$only_seis)
+#@btime P = propagate_pure($grid, $P0, $v, $signal)
+ save=false
+ filename="tmpssd/P.bin"
+ only_seis=true
+ @btime P = propagate($grid, $P0, $v, $signal;
+                      save=$save,
+                      filename=$filename,
+                      only_seis=$only_seis)
 
 
 #using PyPlot
