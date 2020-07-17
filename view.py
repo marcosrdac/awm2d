@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # defining parameters
-filename = "data/seis.bin"
-nt = 300
+filename = "tmpssd/P.bin"
+nt = 2900
 
 # reading file array
 io = open(filename, "r")

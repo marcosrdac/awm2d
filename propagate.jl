@@ -8,7 +8,9 @@ begin
     Δt = .001 # s
     NX = 321
     NZ = 321
-    NT = 2500
+    # NX = 400
+    # NZ = 400
+    NT = 3000
     grid = FDM_Grid(h, Δt, NZ, NX, NT)
 end
 
@@ -52,22 +54,31 @@ begin
     P0 = zero(v)
 end
 
+#@time P = propagate_absorb(grid, P0, v, signal)
+#@time P = propagate(grid, P0, v, signal;
+#                   save=true,
+#                   filename="data/seis.bin",
+#                   only_seis=true)
 
-@time propagate(grid, P0, v, signal;
-                     filename="data/seis.bin",
-                     save=true,
-                     only_seis=true)
-
-
-#using BenchmarkTools
+using BenchmarkTools
 #@btime propagate_save($grid, $P0, $v, $signal; filename=$"data/P.bin")
+#@btime P = propagate_absorb($grid, $P0, $v, $signal)
+save=true
+filename="tmpssd/P.bin"
+only_seis=false
+# filename="data/seis.bin"
+# only_seis=true
+@btime P = propagate($grid, $P0, $v, $signal;
+                     save=$save,
+                     filename=$filename,
+                     only_seis=$only_seis)
 
 
 #using PyPlot
 #
-##plt.imshow(P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
+###plt.imshow(P[1+TAPER:end-TAPER, 1+TAPER:end-TAPER, 1])
 ##plt.imshow(P[:, :, 1]; vmin=-.2, vmax=.2)
-##plt.imshow(P[:, :, 1])
+#plt.imshow(P[:, :, 1])
 ##plt.imshow(P[:, :])
 #
 #plt.colorbar()

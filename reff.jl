@@ -15,7 +15,8 @@ const TAPER = 60
 The positive attenuation coefficient used in exponential formula for getting 
 attenuation factors for pressure field modeling.
 """
-const ATTENUATION_COEFICIENT = 0.0035
+#const ATTENUATION_COEFICIENT = 0.0035  # previously found
+const ATTENUATION_COEFICIENT = 0.008    # Átila's
 
 
 """
@@ -145,7 +146,7 @@ Compute a ricker wave with main frequency ν, sampled in time intervals Δt.
 For a stable signal assert ``ν << \\frac{1}{2 Δt}``.
 """
 function rickerwave(ν::Real, Δt::Real)
-    @assert ν < 0.02 * 1.0/(2.0*Δt)
+    @assert ν < 0.2 * 1.0/(2.0*Δt)
     function ricker(t::Real)
         return((1-2*t^2) * exp(-t^2))
     end
@@ -240,9 +241,10 @@ end
     propagate_pure(grid, P, v, signal)
 Add description...
 """
-function propagate_pure(grid, P, v, signal)
+function propagate_pure(grid, P0, v, signal)
     @unpack h, Δt, nz, nx, nt = grid
     Δtoh² = Δt/h^2
+    P = pad_zeros_add_axes(P0, TAPER+1, 3)
     # time loop, order is important
     for timeiter in eachindex(1:nt)
         # which of the thre times of P are what?
@@ -317,10 +319,25 @@ function offset_signal(signal::Signal, offset)
 end
 
 """
-    propagate_(grid, P, v, signal)
+    propagate_taper(grid, P, v, signal)
 Add description...
+
+Benchmark:
+without compilation time:
+(321,321,3000) pure:                    5.5 s
+(321,321,3000) absorb 0 tpr, no att.:   6.0 s -> 8% slwr than pure
+(400,400,3000) pure:                    8.5 s
+(321,321,3000) absorb 60 tpr, no att.:: 9.5 s
+(321,321,3000) absorb 60 tpr, att.:     12.3 s
+
+
+with compilation time:
+pure: 5.35 s
+without taper: (321,321,3000): 6.26 s -> 17% slower than pure propagation
+with 60 px taper, no atenuation: 11.02 s
+with taper and attenuation: 
 """
-function propagate_(grid, P0, v, signal)
+function propagate_absorb(grid, P0, v, signal)
     global TAPER, POFFSET, IPOFFSET
     @unpack h, Δt, nz, nx, nt = grid
     Δtoh² = Δt/h^2
@@ -514,10 +531,12 @@ function propagate(grid, P0, v, signal;
             new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, Δtoh²)
         end
 
-        if only_seis
-            saved_seis[timeiter,:] .= P[1,:,new_t]
-        else
-            saved_P[:,:,timeiter] .= P[:,:,new_t]
+        if save
+            if only_seis
+                saved_seis[timeiter,:] .= P[1,:,new_t]
+            else
+                saved_P[:,:,timeiter] .= P[:,:,new_t]
+            end
         end
     end
 
@@ -528,4 +547,60 @@ function propagate(grid, P0, v, signal;
             return(saved_P)
         end
     end
+end
+
+
+function test_taper_seis(grid, P0, v, signal)
+    global TAPER, POFFSET, IPOFFSET
+    @unpack h, Δt, nz, nx, nt = grid
+    borders = get_taper_sectors(nz, nx, TAPER)
+    attenuation_factors = get_attenuation_factors(TAPER)
+    Δtoh² = Δt/h^2
+
+    _v = pad_extremes(v, TAPER)
+    _signal = offset_signal(signal, IPOFFSET)
+    _P = pad_zeros_add_axes(P0, TAPER+1, 3)
+    # pressure field of interest
+    P = @view _P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET, :]
+
+    saved_dims = (nt, nx)
+    saved_seis = Array{Float64}(undef, saved_dims...)
+    saved_seis[1,:] .= P[1,:,1]
+
+
+    # time loop, order is important
+    for timeiter in eachindex(2:nt)
+        new_t = mod1(timeiter,   3)
+        cur_t = mod1(timeiter-1, 3)
+        old_t = mod1(timeiter-2, 3)
+
+        old_P = @view _P[:,:,old_t]
+        cur_P = @view _P[:,:,cur_t]
+        new_P = @view _P[:,:,new_t]
+
+        # attenuating current and old iteration borders
+        for border in borders
+            @threads for Iv in border.indices
+                IP = Iv + I∇²r
+                dist = nearest_border_distance(_v, border.id, Iv)
+                cur_P[IP] *= attenuation_factors[dist]
+                old_P[IP] *= attenuation_factors[dist]
+            end
+        end
+
+        # adding signal to field before iteration
+        if timeiter <= length(_signal.signature)
+            cur_P[_signal.position] = _signal.signature[timeiter]
+        end
+
+        # spacial loop, order is not important
+        @threads for Iv in CartesianIndices(_v)
+            IP = Iv + I∇²r
+            new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, Δtoh²)
+        end
+
+        saved_seis[timeiter,:] .= P[1,:,new_t]
+    end
+
+    return(saved_seis)
 end
