@@ -97,6 +97,16 @@ struct Signal2D{T} <: AbstractSignal
 end
 
 
+function open_mmap(filename::String, mode::String="r")
+    io = open(filename, mode)
+    _ndims = read(io, Int64)
+    _dims = Tuple(read(io, Int64) for i in 1:_ndims)
+    A = mmap(io, Array{Float64, _ndims}, _dims)
+    close(io)
+    return(A)
+end
+
+
 """
     pad_extremes(A::AbstractArray, padding::Integer)
 Pads extremes of A by a determined padding length.
@@ -624,8 +634,8 @@ function propagate(grid, P0, v, signal::Signal2D;
         end
 
         # adding signal to field before iteration
-        if timeiter <= length(_signal.signature)
-            cur_P[_signal.position] = _signal.signature[timeiter]
+        if timeiter <= size(_signal.signature, 1)
+            cur_P[POFFSET+signal.position[1], POFFSET+1:POFFSET+nx] = _signal.signature[1+size(_signal.signature, 1)-timeiter,:]
         end
 
         # spacial loop, order is not important
@@ -649,5 +659,22 @@ function propagate(grid, P0, v, signal::Signal2D;
         else
             return(saved_P)
         end
+    end
+end
+
+
+function image_condition(P_file, reversed_P_file, migrated_file)
+    P = open_mmap(P_file)
+    reversed_P = open_mmap(reversed_P_file)
+    (nz, nx, nt) = size(P)
+
+    io = open(migrated_file, "w+")
+    write(io, 2, nz, nx)
+    migrated = mmap(io, Array{Float64, 2}, (nz, nx))
+    close(io)
+
+    migrated .= 0.
+    for t in 1:nt
+        @views migrated[:,:] .+= P[:,:,t] .* P[:,:,nt-t+1]
     end
 end

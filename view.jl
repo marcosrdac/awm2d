@@ -11,9 +11,9 @@ function open_mmap(filename::String, mode::String="r")
     io = open(filename, mode)
     _ndims = read(io, Int64)
     _dims = Tuple(read(io, Int64) for i in 1:_ndims)
-    P = mmap(io, Array{Float64, _ndims}, _dims)
+    A = mmap(io, Array{Float64, _ndims}, _dims)
     close(io)
-    return(P)
+    return(A)
 end
 
 

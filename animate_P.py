@@ -42,4 +42,4 @@ def gen_P_gif(in_fn, out_fn):
 
 
 if __name__ == '__main__':
-    gen_P_gif("data/P.bin", "P.gif")
+    gen_P_gif("/mnt/hdd/home/tmp/awp_data/reversed_P.bin", "P.gif")
