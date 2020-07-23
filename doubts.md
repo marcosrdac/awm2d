@@ -1,1 +1,1 @@
-lógica circular?
+circular logic?

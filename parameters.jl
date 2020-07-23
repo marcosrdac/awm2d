@@ -1,11 +1,31 @@
+include("./reff.jl")
+
+P_file = "/mnt/hdd/home/tmp/awp_data/P.bin"
+reversed_P_file="/mnt/hdd/home/tmp/awp_data/reversed_P.bin"
+migrated_file = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
+
 # mesh and solving parameters
 begin
     h  = 1.0 # km
     Δt = .001 # s
     NX = 321
     NZ = 321
-    NT = 3000
+    NT = 1900
     grid = FDM_Grid(h, Δt, NZ, NX, NT)
+end
+
+
+# signal parameters
+begin
+    ν = 6 # Hz
+    array = "split"
+    signature = rickerwave(ν, Δt)
+
+    if array === "split"      position = CartesianIndex(1, NX÷2+1)
+    elseif array === "endon"  position = CartesianIndex(1, 1)
+    elseif array === "center" position = CartesianIndex(NZ÷2+1, NX÷2+1)
+    end
+    signal = Signal1D(signature, position)
 end
 
 
@@ -26,4 +46,10 @@ begin
     v[   1:z1,  1:end] .= V1
     v[z1+1:z2,  1:end] .= V2
     v[z2+1:end, 1:end] .= V3
+end
+
+
+# starting pressure field
+begin
+    P0 = zero(v)
 end

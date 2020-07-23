@@ -27,19 +27,29 @@ def gen_P_gif(in_fn, out_fn):
 
     im = ax.imshow(cur_P, aspect='auto', vmin=-.1, vmax=.1)
 
+    time_sep = 10
+
     def update(t):
         cur_P = np.fromfile(io,
                             dtype=np.float64,
                             count=nz*nx,
-                            offset=int(nz*nx*t) * np.float64().itemsize)
-        cur_P = cur_P.reshape((nz, nx), order='F')
-        im.set_data(cur_P)
+                            offset=int(nz*nx*time_sep) * np.float64().itemsize)
+        try:
+            cur_P = cur_P.reshape((nz, nx), order='F')
+            im.set_data(cur_P)
+        except:
+            print(nt)
+            return()
         return(ax)
 
-    anim = FuncAnimation(fig, update, frames=np.arange(0, nt, 10), interval=70)
+    anim = FuncAnimation(fig, update, frames=np.arange(1, nt-1, time_sep), interval=70)
     anim.save(out_fn, dpi=80, writer='imagemagick')
-    plt.show()
+    #plt.show()
 
 
 if __name__ == '__main__':
-    gen_P_gif("/mnt/hdd/home/tmp/awp_data/reversed_P.bin", "P.gif")
+    P_file = "/mnt/hdd/home/tmp/awp_data/P.bin"
+    reversed_P_file = "/mnt/hdd/home/tmp/awp_data/reversed_P.bin"
+
+    gen_P_gif(P_file,          "animations/P.gif")
+    gen_P_gif(reversed_P_file, "animations/reversed_P.gif")

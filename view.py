@@ -26,9 +26,9 @@ else:
 
 # plotting data
 if len(shape) == 2:
-    #plt.imshow(seis, aspect='auto')
+    plt.imshow(seis, aspect='auto')
     #plt.imshow(seis, aspect='auto', vmin=-.006, vmax=.006)
-    plt.imshow(seis, aspect='auto', vmin=-.01, vmax=.01)
+    #plt.imshow(seis, aspect='auto', vmin=-.01, vmax=.01)
 else:
     plt.imshow(P)
 

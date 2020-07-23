@@ -15,8 +15,8 @@ const TAPER = 60
 The positive attenuation coefficient used in exponential formula for getting 
 attenuation factors for pressure field modeling.
 """
-#const ATTENUATION_COEFICIENT = 0.0035  # previously found
-const ATTENUATION_COEFICIENT = 0.008    # Átila's
+const ATTENUATION_COEFICIENT = 0.0035  # previously found
+#const ATTENUATION_COEFICIENT = 0.008    # Átila's
 
 
 """
