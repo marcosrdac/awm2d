@@ -8,7 +8,6 @@ include("./parameters.jl")
                    filename=P_file,
                    only_seis=false)
 
-
 #using BenchmarkTools
 #@btime P = propagate_pure($grid, $P0, $v, $signal)
 # save=false

@@ -474,6 +474,8 @@ end
 function propagate(grid, P0, v, signal::Signal1D;
                    filename::String="data.bin",
                    only_seis::Bool=false,
+                   direct_only::Bool=false,
+                   direct_infer_nt::Bool=true,
                    save=true)
     global TAPER, POFFSET, IPOFFSET
     @unpack h, Δt, nz, nx, nt = grid
@@ -482,6 +484,15 @@ function propagate(grid, P0, v, signal::Signal1D;
     Δtoh² = Δt/h^2
 
     _v = pad_extremes(v, TAPER)
+    if direct_only
+        @views _v[:,TAPER+1:end-TAPER] .= repeat(v[1:1,:], nz+2*TAPER, 1)
+
+        if direct_infer_nt
+            @views vmin = minimum(v[1,:])
+            nt = Int64(ceil(h/(vmin*Δt))) + size(signal.signature, 1) # ntmax = Δx/(vmin*Δt)
+        end
+    end
+
     _signal = offset_signal(signal, IPOFFSET)
     _P = pad_zeros_add_axes(P0, TAPER+1, 3)
     # pressure field of interest
@@ -570,6 +581,8 @@ end
 function propagate(grid, P0, v, signal::Signal2D;
                    filename::String="data.bin",
                    only_seis::Bool=false,
+                   direct_only::Bool=false,
+                   direct_infer_nt::Bool=true,
                    save=true)
     global TAPER, POFFSET, IPOFFSET
     @unpack h, Δt, nz, nx, nt = grid
@@ -578,6 +591,14 @@ function propagate(grid, P0, v, signal::Signal2D;
     Δtoh² = Δt/h^2
 
     _v = pad_extremes(v, TAPER)
+    if direct_only
+        @views _v[:,TAPER+1:end-TAPER] .= repeat(v[1:1,:], nz+2*TAPER, 1)
+
+        if direct_infer_nt
+            vmin = minimum(v[1,:])
+            nt = Int64(ceil(h/(vmin*Δt))) + size(signal.signature, 1)  # ntmax = Δx/(vmin*Δt)
+        end
+    end
     _signal = offset_signal(signal, IPOFFSET)
     _P = pad_zeros_add_axes(P0, TAPER+1, 3)
     # pressure field of interest
@@ -663,6 +684,20 @@ function propagate(grid, P0, v, signal::Signal2D;
 end
 
 
+function subtract_direct(P_file, direct_file, P_sub_direct_file)
+    P = open_mmap(P_file)
+    direct = open_mmap(direct_file)
+    (nz, nx, nt) = size(P)
+
+    io = open(P_sub_direct_file, "w+")
+    write(io, 3, nz, nx, nt)
+    P_sub_direct = mmap(io, Array{Float64, 3}, (nz, nx, nt))
+    close(io)
+
+    @views P_sub_direct[:] .= P[:] .- direct[:]
+end
+
+
 function image_condition(P_file, reversed_P_file, migrated_file)
     P = open_mmap(P_file)
     reversed_P = open_mmap(reversed_P_file)
@@ -675,6 +710,6 @@ function image_condition(P_file, reversed_P_file, migrated_file)
 
     migrated .= 0.
     for t in 1:nt
-        @views migrated[:,:] .+= P[:,:,t] .* P[:,:,nt-t+1]
+        @views migrated[:,:] .+= P[:,:,t] .* reversed_P[:,:,nt-t+1]
     end
 end

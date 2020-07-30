@@ -49,7 +49,9 @@ def gen_P_gif(in_fn, out_fn):
 
 if __name__ == '__main__':
     P_file = "/mnt/hdd/home/tmp/awp_data/P.bin"
+    P_sub_direct_file = "/mnt/hdd/home/tmp/awp_data/P_sub_direct.bin"
     reversed_P_file = "/mnt/hdd/home/tmp/awp_data/reversed_P.bin"
 
-    gen_P_gif(P_file,          "animations/P.gif")
-    gen_P_gif(reversed_P_file, "animations/reversed_P.gif")
+    #gen_P_gif(P_file,            "animations/P.gif")
+    gen_P_gif(P_sub_direct_file, "animations/P_sub_direct.gif")
+    #gen_P_gif(reversed_P_file,   "animations/reversed_P.gif")

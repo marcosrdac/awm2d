@@ -1,9 +1,8 @@
 #!/usr/bin/sh
 
-jl_files=(propagate.jl reverse_propagate.jl migrate.jl)
-
-for i in ${jl_files[@]}
+#for i in propagate.jl direct.jl reverse_propagate.jl migrate.jl
+for i in reverse_propagate.jl migrate.jl
 do
   echo "Running ${i}..."
-  [ $? -eq 0 ] && julia $i
+  [ $? -eq 0 ] && julia "$i"
 done

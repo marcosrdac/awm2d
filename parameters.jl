@@ -1,6 +1,8 @@
 include("./reff.jl")
 
 P_file = "/mnt/hdd/home/tmp/awp_data/P.bin"
+direct_seis_file = "/mnt/hdd/home/tmp/awp_data/direct_seis.bin"
+P_sub_direct_file = "/mnt/hdd/home/tmp/awp_data/P_sub_direct.bin"
 reversed_P_file="/mnt/hdd/home/tmp/awp_data/reversed_P.bin"
 migrated_file = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
 
@@ -10,7 +12,8 @@ begin
     Δt = .001 # s
     NX = 321
     NZ = 321
-    NT = 1900
+    #NT = 1900
+    NT = 3000
     grid = FDM_Grid(h, Δt, NZ, NX, NT)
 end
 
@@ -31,11 +34,11 @@ end
 
 # three layered model parameters
 begin
-    H1 = (1*NZ)÷8
-    H2 = (1*NZ)÷8
+    H1 = (1*NZ)÷3
+    H2 = (1*NZ)÷3
     V1 = 3. # km/s
-    V2 = 4. # km/s
-    V3 = 5. # km/s
+    V2 = 5. # km/s
+    V3 = 9. # km/s
 
     # reflectors position
     z1 = H1

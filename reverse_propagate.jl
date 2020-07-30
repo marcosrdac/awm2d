@@ -6,8 +6,16 @@ include("./parameters.jl")
 begin
     P = open_mmap(P_file)
     seis = P[1,:,:]'
+    direct_seis = open_mmap(direct_seis_file)
+    seis_wo_direct = similar(seis)
+    seis_wo_direct .= seis
+    @threads for I in eachindex(direct_seis)
+        seis_wo_direct[I] = direct_seis[I]
+    end
+    
     position = CartesianIndex(1, 1)
-    signal = Signal2D(seis, position)
+    #signal = Signal2D(seis, position)
+    signal = Signal2D(seis_wo_direct, position)
 end
 
 @time propagate(grid, P0, v, signal;
