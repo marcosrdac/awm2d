@@ -7,6 +7,7 @@ include("./parameters.jl")
                    save=true,
                    filename=direct_seis_file,
                    direct_only=true,
+                   direct_infer_nt=false,
                    only_seis=true)
 
 #using BenchmarkTools

@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 
 # defining parameters
 filename = "/mnt/hdd/home/tmp/awp_data/model.bin"
+filename = "/mnt/hdd/home/tmp/awp_data/direct_seis.bin"
 filename = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
 nt = 2900
 

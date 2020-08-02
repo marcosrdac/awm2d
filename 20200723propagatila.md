@@ -1,4 +1,7 @@
-tentar subtrair só a onda direta
+<!--tentar subtrair só a onda direta-->
+modulariza os codigos
+ler velocidade do codigo
+ler sinal do binário
 dx != dz
 offset local
-modularizar os códigos
+(checar como usa madagascar no julia)

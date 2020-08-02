@@ -10,7 +10,7 @@ begin
     seis_wo_direct = similar(seis)
     seis_wo_direct .= seis
     @threads for I in eachindex(direct_seis)
-        seis_wo_direct[I] = direct_seis[I]
+        seis_wo_direct[I] -= direct_seis[I]
     end
     
     position = CartesianIndex(1, 1)

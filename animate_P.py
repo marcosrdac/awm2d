@@ -25,7 +25,8 @@ def gen_P_gif(in_fn, out_fn):
     cur_P = np.fromfile(io, dtype=np.float64, count=nz*nx)
     cur_P = cur_P.reshape((nz, nx), order='F')
 
-    im = ax.imshow(cur_P, aspect='auto', vmin=-.1, vmax=.1)
+    #im = ax.imshow(cur_P, aspect='auto', vmin=-.1, vmax=.1)
+    im = ax.imshow(cur_P, aspect='auto')
 
     time_sep = 10
 
@@ -36,6 +37,7 @@ def gen_P_gif(in_fn, out_fn):
                             offset=int(nz*nx*time_sep) * np.float64().itemsize)
         try:
             cur_P = cur_P.reshape((nz, nx), order='F')
+            im.set_clim(vmin=np.min(cur_P), vmax=np.max(cur_P))
             im.set_data(cur_P)
         except:
             print(nt)
@@ -52,6 +54,6 @@ if __name__ == '__main__':
     P_sub_direct_file = "/mnt/hdd/home/tmp/awp_data/P_sub_direct.bin"
     reversed_P_file = "/mnt/hdd/home/tmp/awp_data/reversed_P.bin"
 
-    #gen_P_gif(P_file,            "animations/P.gif")
-    gen_P_gif(P_sub_direct_file, "animations/P_sub_direct.gif")
+    gen_P_gif(P_file,            "animations/P.gif")
+    #gen_P_gif(P_sub_direct_file, "animations/P_sub_direct.gif")
     #gen_P_gif(reversed_P_file,   "animations/reversed_P.gif")
