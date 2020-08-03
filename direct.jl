@@ -1,10 +1,7 @@
-using InteractiveUtils
-include("./reff.jl")
 include("./parameters.jl")
 
-
 @time P = propagate(grid, P0, v, signal;
-                   save=true,
+                   save=false,
                    filename=direct_seis_file,
                    direct_only=true,
                    direct_infer_nt=false,

@@ -1,12 +1,9 @@
-using InteractiveUtils
-include("./reff.jl")
 include("./parameters.jl")
 
-
 @time P = propagate(grid, P0, v, signal;
-                   save=true,
-                   filename=P_file,
-                   only_seis=false)
+                    save=true,
+                    filename=P_file,
+                    only_seis=false)
 
 #using BenchmarkTools
 #@btime P = propagate_pure($grid, $P0, $v, $signal)

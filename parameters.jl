@@ -1,5 +1,7 @@
 include("./reff.jl")
 
+using .Propagate
+
 P_file = "/mnt/hdd/home/tmp/awp_data/P.bin"
 direct_seis_file = "/mnt/hdd/home/tmp/awp_data/direct_seis.bin"
 P_sub_direct_file = "/mnt/hdd/home/tmp/awp_data/P_sub_direct.bin"
@@ -10,12 +12,12 @@ migrated_file = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
 begin
     h  = 1.0 # km
     Δt = .001 # s
-    NX = 321
-    NZ = 321
-    #NX = 101
-    #NZ = 101
+    #NX = 321
+    #NZ = 321
+    NX = 100
+    NZ = 100
     #NT = 1900
-    NT = 5000
+    NT = 100
     grid = FDM_Grid(h, Δt, NZ, NX, NT)
 end
 
