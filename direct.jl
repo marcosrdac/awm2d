@@ -1,7 +1,7 @@
 include("./parameters.jl")
 
 @time P = propagate(grid, P0, v, signal;
-                   save=false,
+                   save=true,
                    filename=direct_seis_file,
                    direct_only=true,
                    direct_infer_nt=false,

@@ -1,5 +1,4 @@
-using InteractiveUtils
-include("./reff.jl")
+using Base.Threads
 include("./parameters.jl")
 
 # 2D signal parameters
@@ -18,7 +17,7 @@ begin
     signal = Signal2D(seis_wo_direct, position)
 end
 
-@time propagate(grid, P0, v, signal;
-                save=true,
-                filename=reversed_P_file,
-                only_seis=false)
+@time propagate_2d_signal(grid, P0, v, signal;
+                          save=true,
+                          filename=reversed_P_file,
+                          only_seis=false)

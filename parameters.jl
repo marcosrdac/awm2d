@@ -16,8 +16,8 @@ begin
     #NZ = 321
     NX = 100
     NZ = 100
-    #NT = 1900
     NT = 100
+    #NT = 3000
     grid = FDM_Grid(h, Δt, NZ, NX, NT)
 end
 
