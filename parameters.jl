@@ -12,12 +12,12 @@ migrated_file = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
 begin
     h  = 1.0 # km
     Δt = .001 # s
-    #NX = 321
-    #NZ = 321
+    # NX = 321
+    # NZ = 321
+    # NT = 3000
     NX = 100
     NZ = 100
     NT = 100
-    #NT = 3000
     grid = FDM_Grid(h, Δt, NZ, NX, NT)
 end
 

@@ -48,4 +48,8 @@ new w. 60 tpr
 (321,321,3000) saving snaps to SSD: 18,8 s (21 s before)
 (321,321,3000) saving snaps to HDD: 19,8 s
 
+propagate metaprogramming
+(321,321,3000) !saving:             11.7 s
+(321,321,3000) saving snaps to HDD: 19,9 s
+
 So I'm using my HDD :S

@@ -1,23 +1,18 @@
 using Base.Threads
 include("./parameters.jl")
 
-# 2D signal parameters
 begin
     P = open_mmap(P_file)
-    seis = P[1,:,:]'
+    seis = slice_seismogram(P)
     direct_seis = open_mmap(direct_seis_file)
-    seis_wo_direct = similar(seis)
-    seis_wo_direct .= seis
+
+    # removing direct_wave from seismogram
     @threads for I in eachindex(direct_seis)
-        seis_wo_direct[I] -= direct_seis[I]
+        seis[I] -= direct_seis[I]
     end
     
-    position = CartesianIndex(1, 1)
-    #signal = Signal2D(seis, position)
-    signal = Signal2D(seis_wo_direct, position)
+    signal2d = Signal2D(seis, position, CartesianIndex(1, 1))
 end
 
-@time propagate_2d_signal(grid, P0, v, signal;
-                          save=true,
-                          filename=reversed_P_file,
-                          only_seis=false)
+@time propagate_2d(grid, P0, v, signal;
+                   filename=reversed_P_file,)

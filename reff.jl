@@ -4,7 +4,12 @@ module Propagate
     using Parameters
     using StaticArrays
 
-    export FDM_Grid, Signal1D, Signal2D, rickerwave, propagate, propagate_2d_signal, open_mmap
+    # structures
+    export FDM_Grid, Signal1D, Signal2D
+    # functions
+    export rickerwave, open_mmap, slice_seismogram, image_condition
+    export propagate, propagate_save, propagate_save_seis, propagate_2d, propagate_2d_save, propagate_2d_save_seis
+
 
     """
         TAPER
@@ -39,7 +44,7 @@ module Propagate
 
     """
         I∇²r
-    The radius of the laplacian operator used, in cartesian index. Useful for 
+    The radius of the laplacian operator used, in cartesian index. Useful for
     offsetting positions.
     """
     const I∇²r = CartesianIndex(∇²r, ∇²r)
@@ -306,165 +311,146 @@ module Propagate
     end
 
 
-    begin  # macros for propagation
-        macro updatet(T, old_t, cur_t, new_t)
+    # defining propagation functions
+    macro putsignal(func)
+        # adding signal to field before iteration
+        funcname = String(func)
+        if occursin("2d", funcname)
             quote
-                $new_t = mod1($T,   3)
-                $cur_t = mod1($T-1, 3)
-                $old_t = mod1($T-2, 3)
-            end |> esc
-        end
-
-        macro updatesnaps(P, old_P, cur_P, new_P)
-            quote
-                $old_P = @view $P[:,:,old_t]
-                $cur_P = @view $P[:,:,cur_t]
-                $new_P = @view $P[:,:,new_t]
-            end |> esc
-        end
-
-        macro attenuateborders(borders)
-            quote
-                # attenuating current and old iteration borders
-                for border in $borders
-                    @threads for Iv in border.indices
-                        IP = Iv + I∇²r
-                        dist = nearest_border_distance(_v, border.id, Iv)
-                        cur_P[IP] *= attenuation_factors[dist]
-                        old_P[IP] *= attenuation_factors[dist]
-                    end
-                end
-            end |> esc
-        end
-
-
-        macro putsignal1D(signal::Signal1D)
-            quote
-                # adding signal to field before iteration
-                if T <= length(_signal.signature)
-                    cur_P[_signal.position] = _signal.signature[T]
-                end
-            end |> esc
-        end
-
-        macro putsignal2D(signal::Signal2D)
-            quote
-                # adding signal to field before iteration
                 if T <= size(_signal.signature, 1)
                     cur_P[POFFSET+signal.position[1], POFFSET+1:POFFSET+nx] =
                         _signal.signature[1+size(_signal.signature, 1)-T,:]
                 end
-            end |> esc
-        end
-
-        macro putsignal(signaldim)
-            if signaldim == 1
-                mac = :(@putsignal1D) |> esc
-            elseif signaldim == 2
-                mac = :(@putsignal2D) |> esc
             end
-        end
-    end
-
-    macro getnewsnap()
-        quote
-            # spatial loop, order is not important
-            @threads for Iv in CartesianIndices(_v)
-                IP = Iv + I∇²r
-                new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, Δtoh²)
+        else
+            quote
+                if T <= length(_signal.signature)
+                    cur_P[_signal.position] = _signal.signature[T]
+                end
             end
         end |> esc
     end
 
-    for func in (:propagate, :propagate_2d_signal)
-        if func == :propagate
-            signaldim = 1
-        elseif func == :propagate_2d_signal
-            signaldim = 2
-        end
-
-        quote
-            function $func(grid, P0, v, signal::AbstractSignal;
-                           filename::String="data.bin",
-                           only_seis::Bool=false,
-                           direct_only::Bool=false,
-                           direct_infer_nt::Bool=true,
-                           save=true)
-                global TAPER, POFFSET, IPOFFSET
-                @unpack h, Δt, nz, nx, nt = grid
-                borders = get_taper_sectors(nz, nx, TAPER)
-                attenuation_factors = get_attenuation_factors(TAPER)
-                Δtoh² = Δt/h^2
-
-                _v = pad_extremes(v, TAPER)
-                if direct_only
-                    @views _v[:,TAPER+1:end-TAPER] .= repeat(v[1:1,:], nz+2*TAPER, 1)
-
-                    if direct_infer_nt
-                        @views vmin = minimum(v[1,:])
-                        nt = Int64(ceil(h/(vmin*Δt))) + size(signal.signature, 1) # ntmax = Δx/(vmin*Δt)
-                    end
-                end
-
-                _signal = offset_signal(signal, IPOFFSET)
-                _P = pad_zeros_add_axes(P0, TAPER+1, 3)
-                # pressure field of interest
-                P = @view _P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET, :]
-
-                if only_seis
-                    saved_dims = (nt, nx)
-                else
-                    saved_dims = (nz, nx, nt)
-                end
-                saved_ndims = length(saved_dims)
-
-                # setting up disk array for saving output (P_saved)
-                if save
+    macro initialize_saved_arrays(func)
+        funcname = String(func)
+        if occursin("save", funcname)
+            if occursin("seis", funcname)
+                quote
                     io = open(filename, "w+")
-                    write(io, saved_ndims, saved_dims...)
-                    if only_seis
-                        saved_seis = mmap(io, Array{Float64, saved_ndims}, saved_dims)
-                        saved_seis[1,:] .= P[1,:,1]
-                    else
-                        saved_P = mmap(io, Array{Float64, saved_ndims}, saved_dims)
-                        saved_P[:,:,1] .= P[:,:,1]
-                    end
+                    write(io, 2, nt, nx)
+                    saved_seis = mmap(io, Array{Float64, 2}, (nt, nx))
+                    saved_seis[1,:] .= P[1,:,1]
                     close(io)
-                else
-                    if only_seis
-                        saved_seis = Array{Float64, saved_ndims}(undef, saved_dims...)
-                        saved_seis[1,:] .= P[1,:,1]
-                    else
-                        saved_P = Array{Float64, saved_ndims}(undef, saved_dims...)
-                        saved_P[:,:,1] .= P[:,:,1]
-                    end
                 end
-
-
-                # time loop, order is important
-                for T in eachindex(2:nt)
-                    @updatet T old_t cur_t new_t
-                    @updatesnaps _P old_P cur_P new_P
-                    @attenuateborders borders
-                    @putsignal signaldim
-                    @getnewsnap
-                    if save
-                        if only_seis
-                            saved_seis[T,:] .= P[1,:,new_t]
-                        else
-                            saved_P[:,:,T] .= P[:,:,new_t]
-                        end
-                    end
-                end
-                if ! save
-                    if only_seis
-                        return(saved_seis)
-                    else
-                        return(saved_P)
-                    end
+            else
+                quote
+                    io = open(filename, "w+")
+                    write(io, 3, nz, nx, nt)
+                    saved_P = mmap(io, Array{Float64, 3}, (nz, nx, nt))
+                    saved_P[:,:,1] .= P[:,:,1]
+                    close(io)
                 end
             end
+        else
+            if occursin("seis", funcname)
+                quote
+                    saved_seis = Array{Float64, 2}(undef, (nt, nx))
+                    saved_seis[1,:] .= P[1,:,1]
+                end
+            else
+                quote
+                    saved_P = Array{Float64, 3}(undef, (nz, nx, nt))
+                    saved_P[:,:,1] .= P[:,:,1]
+                end
+            end
+        end |> esc
+    end
+
+    macro savesnapifsave(func)
+        funcname = String(func)
+        if occursin("save", funcname)
+            if occursin("seis", funcname)
+                :(saved_seis[T,:] .= P[1,:,new_t])
+            else
+                :(saved_P[:,:,T] .= P[:,:,new_t])
+            end
+        end |> esc
+    end
+
+    macro returnpropperarrayifnotsave(func)
+        funcname = String(func)
+        if ! occursin("save", funcname)
+            if occursin("seis", funcname)
+                :(return(saved_seis))
+            else
+                :(return(saved_P))
+            end
+        end |> esc
+    end
+
+    for func in (:propagate,    :propagate_save,    :propagate_save_seis,
+                 :propagate_2d, :propagate_2d_save, :propagate_2d_save_seis)
+        quote
+    #==========================================================================#
+    function $func(grid, P0, v, signal::AbstractSignal;
+                    filename::String="data.bin",
+                    direct_only::Bool=false,)
+        global TAPER, POFFSET, IPOFFSET
+        @unpack h, Δt, nz, nx, nt = grid
+        borders = get_taper_sectors(nz, nx, TAPER)
+        attenuation_factors = get_attenuation_factors(TAPER)
+        Δtoh² = Δt/h^2
+
+        _v = pad_extremes(v, TAPER)
+        _signal = offset_signal(signal, IPOFFSET)
+        _P = pad_zeros_add_axes(P0, TAPER+1, 3)
+        # pressure field of interest
+        P = @view _P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET, :]
+
+        if direct_only
+            @views _v[:,TAPER+1:end-TAPER] .= repeat(v[1:1,:], nz+2*TAPER, 1)
+        end
+
+        @initialize_saved_arrays($func)  # declares saved_P or saved_seis
+
+        # time loop, order is important
+        for T in eachindex(2:nt)
+            new_t = mod1(T,   3)
+            cur_t = mod1(T-1, 3)
+            old_t = mod1(T-2, 3)
+
+            old_P = @view _P[:,:,old_t]
+            cur_P = @view _P[:,:,cur_t]
+            new_P = @view _P[:,:,new_t]
+
+            # attenuating current and old iteration borders
+            for border in borders
+                @threads for Iv in border.indices
+                    IP = Iv + I∇²r
+                    dist = nearest_border_distance(_v, border.id, Iv)
+                    cur_P[IP] *= attenuation_factors[dist]
+                    old_P[IP] *= attenuation_factors[dist]
+                end
+            end
+
+            # putting 1D or 2D signal
+            @putsignal($func)
+
+            # solve P wave equation
+            @threads for Iv in CartesianIndices(_v)
+                IP = Iv + I∇²r
+                new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, Δtoh²)
+            end
+            @savesnapifsave($func)
+        end
+        @returnpropperarrayifnotsave($func)
+    end
+    #==========================================================================#
         end |> eval
+    end
+
+    function slice_seismogram(P)
+        seis = P[1,:,:]'
     end
 
     function image_condition(P_file, reversed_P_file, migrated_file)
