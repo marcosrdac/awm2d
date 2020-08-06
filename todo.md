@@ -6,9 +6,10 @@
   <!--- make reverse propagation-->
   <!--- image condition-->
   <!--- subtract direct wave from seismogram before reverse propagation-->
-  - create a module for your function definitions
+  <!--- create a module for your function definitions-->
+  <!--- create specific code for propagation w/wo saving-->
   - read velocity field from binary file
   - read signal from binary file
   - dx != dz
-  - offset local
-  - (checar como usa madagascar no julia)
+  - local offset
+  <!--- checar como usa madagascar no julia: tristemente, ainda não tem-->

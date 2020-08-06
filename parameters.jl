@@ -1,10 +1,9 @@
-include("./reff.jl")
+include("./propagate_module.jl")
 
 using .Propagate
 
 P_file = "/mnt/hdd/home/tmp/awp_data/P.bin"
 direct_seis_file = "/mnt/hdd/home/tmp/awp_data/direct_seis.bin"
-P_sub_direct_file = "/mnt/hdd/home/tmp/awp_data/P_sub_direct.bin"
 reversed_P_file="/mnt/hdd/home/tmp/awp_data/reversed_P.bin"
 migrated_file = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
 
@@ -12,12 +11,12 @@ migrated_file = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
 begin
     h  = 1.0 # km
     Δt = .001 # s
-    # NX = 321
-    # NZ = 321
-    # NT = 3000
-    NX = 100
-    NZ = 100
-    NT = 100
+    NX = 321
+    NZ = 321
+    NT = 5000
+    #NX = 100
+    #NZ = 100
+    #NT = 100
     grid = FDM_Grid(h, Δt, NZ, NX, NT)
 end
 

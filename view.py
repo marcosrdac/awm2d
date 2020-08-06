@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 
 # defining parameters
 filename = "/mnt/hdd/home/tmp/awp_data/model.bin"
+filename, nt = "/mnt/hdd/home/tmp/awp_data/P.bin", 2900
 filename = "/mnt/hdd/home/tmp/awp_data/direct_seis.bin"
 filename = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
-nt = 2900
 
 # reading file array
 io = open(filename, "r")

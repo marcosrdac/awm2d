@@ -7,7 +7,7 @@ module Propagate
     # structures
     export FDM_Grid, Signal1D, Signal2D
     # functions
-    export rickerwave, open_mmap, slice_seismogram, image_condition
+    export rickerwave, hddarray, slice_seismogram, image_condition
     export propagate, propagate_save, propagate_save_seis, propagate_2d, propagate_2d_save, propagate_2d_save_seis
 
 
@@ -103,12 +103,22 @@ module Propagate
     end
 
 
-    function open_mmap(filename::String, mode::String="r")
-        io = open(filename, mode)
-        _ndims = read(io, Int64)
-        _dims = Tuple(read(io, Int64) for i in 1:_ndims)
-        A = mmap(io, Array{Float64, _ndims}, _dims)
-        close(io)
+    function hddarray(filename::String, mode::String="r", type::DataType=Float64, dims=())
+        if occursin("w", mode)
+            @assert dims !== ()
+            @assert eltype(dims) <: Int64
+            io = open(filename, mode)
+            _ndims = length(dims)
+            write(io, _ndims, dims...)
+            A = mmap(io, Array{Float64, _ndims}, dims)
+            close(io)
+        else
+            io = open(filename, mode)
+            _ndims = read(io, Int64)
+            dims = Tuple(read(io, Int64) for i in 1:_ndims)
+            A = mmap(io, Array{Float64, _ndims}, dims)
+            close(io)
+        end
         return(A)
     end
 
@@ -336,19 +346,13 @@ module Propagate
         if occursin("save", funcname)
             if occursin("seis", funcname)
                 quote
-                    io = open(filename, "w+")
-                    write(io, 2, nt, nx)
-                    saved_seis = mmap(io, Array{Float64, 2}, (nt, nx))
+                    saved_seis = hddarray(filename, "w+",Float64, (nt, nx))
                     saved_seis[1,:] .= P[1,:,1]
-                    close(io)
                 end
             else
                 quote
-                    io = open(filename, "w+")
-                    write(io, 3, nz, nx, nt)
-                    saved_P = mmap(io, Array{Float64, 3}, (nz, nx, nt))
+                    saved_P = hddarray(filename, "w+", Float64, (nz, nx, nt))
                     saved_P[:,:,1] .= P[:,:,1]
-                    close(io)
                 end
             end
         else
@@ -450,19 +454,14 @@ module Propagate
     end
 
     function slice_seismogram(P)
-        seis = P[1,:,:]'
+        seis = copy(P[1,:,:]')
     end
 
     function image_condition(P_file, reversed_P_file, migrated_file)
-        P = open_mmap(P_file)
-        reversed_P = open_mmap(reversed_P_file)
+        P = hddarray(P_file)
+        reversed_P = hddarray(reversed_P_file)
         (nz, nx, nt) = size(P)
-
-        io = open(migrated_file, "w+")
-        write(io, 2, nz, nx)
-        migrated = mmap(io, Array{Float64, 2}, (nz, nx))
-        close(io)
-
+        migrated = hddarray(migrated_file, "w+", Float64, (nz, nx))
         migrated .= 0.
         for t in 1:nt
             @views migrated[:,:] .+= P[:,:,t] .* reversed_P[:,:,nt-t+1]
