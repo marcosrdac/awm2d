@@ -1,5 +1,5 @@
 AWM2D (Acoustic Wave Modeling 2D)
-=====
+=================================
 
 This module provides functions for the 2D wave equation solving through the finite-difference method (FDM). It can also perform reverse time propagation of data for seismic migration.
 
@@ -35,3 +35,4 @@ Contact
     - **GitHub:** [marcosrdac](github.com/marcosrdac)
     - **Website:** [marcosrdac.com](www.marcosrdac.com)
   - **Advisor:** Átila Saraiva Quintela Soares
+    - **E-mail:** [atilasaraiva@gmail.com](atilasaraiva@gmail.com)
