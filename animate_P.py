@@ -19,35 +19,38 @@ def gen_P_gif(in_fn, out_fn):
     shape = np.fromfile(io, dtype=np.int64, count=n)
     nz, nx, nt = shape
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(3, 3))
     ax = fig.add_axes([0, 0, 1, 1])
 
     cur_P = np.fromfile(io, dtype=np.float64, count=nz*nx)
     cur_P = cur_P.reshape((nz, nx), order='F')
 
-    #im = ax.imshow(cur_P, aspect='auto', vmin=-.1, vmax=.1)
-    im = ax.imshow(cur_P, aspect='auto')
+    im = ax.imshow(cur_P, aspect='auto', vmin=-.1, vmax=.1)
 
-    time_sep = 30
+    time_sep = 50
 
     def update(t):
+        global maxmod
         cur_P = np.fromfile(io,
                             dtype=np.float64,
                             count=nz*nx,
                             offset=int(nz*nx*time_sep) * np.float64().itemsize)
         try:
-            vmin, vmax = np.min(cur_P), np.max(cur_P)
-            # maxmod = np.max(np.abs(vmin), np.abs(vmax))
             cur_P = cur_P.reshape((nz, nx), order='F')
-            im.set_clim(vmin=vmin, vmax=vmax)
-            # im.set_clim(vmin=-maxmod, vmax=maxmod)
+            #vmin, vmax = np.min(cur_P), np.max(cur_P)
+
+            ##im.set_clim(vmin=vmin, vmax=vmax)
+
+            #maxmod = np.max([np.abs(vmin), np.abs(vmax)])
+            #im.set_clim(vmin=-maxmod, vmax=maxmod)
+
             im.set_data(cur_P)
         except:
             print(nt)
             return()
         return(ax)
 
-    anim = FuncAnimation(fig, update, frames=np.arange(1, nt-1, time_sep), interval=70)
+    anim = FuncAnimation(fig, update, frames=np.arange(1, nt-1, time_sep), interval=60)
     anim.save(out_fn, dpi=80, writer='imagemagick')
     #plt.show()
 
@@ -56,5 +59,5 @@ if __name__ == '__main__':
     P_file = "/mnt/hdd/home/tmp/awp_data/P.bin"
     reversed_P_file = "/mnt/hdd/home/tmp/awp_data/reversed_P.bin"
 
-    gen_P_gif(P_file,            "animations/P.gif")
+    #gen_P_gif(P_file,            "animations/P.gif")
     gen_P_gif(reversed_P_file,   "animations/reversed_P.gif")

@@ -1,4 +1,5 @@
 import numpy as np
+from os.path import basename
 import matplotlib.pyplot as plt
 
 # defining parameters
@@ -36,4 +37,6 @@ else:
 
 
 plt.colorbar()
+plt.title(basename(filename))
+plt.savefig("migrated.jpg")
 plt.show()
