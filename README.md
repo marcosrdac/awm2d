@@ -14,14 +14,14 @@ Three layered geologic model (two interfaces)
 
 ### P wave snaps
 
-![P wave snaps](./example/example_P.gif)
+<p align="center"><img src="./example/example_P.gif" alt="P wave snaps">
 
 
 ### RTM snaps
 
-![RTM snaps](./example/example_reversed_P.gif)
+<p align="center"><img src="./example/example_reversed_P.gif" alt="RTM snaps">
 
 
 ### RTM migration
 
-![Migrated data](./example/example_migrated.jpg)
+<p align="center"><img src="./example/example_migrated.jpg" alt="Migrated data">
