@@ -25,3 +25,12 @@ Three layered geologic model (two interfaces)
 ### RTM migration
 
 <p align="center"><img src="./example/example_migrated.jpg" alt="Migrated data">
+
+
+Contact
+=======
+
+  - **Name:** Marcos Reinan de Assis Conceição
+  - **E-mail:** [marcosrdac@gmail.com](mailto:marcosrdac@gmail.com)
+  - **GitHub:** [marcosrdac](github.com/marcosrdac)
+  - **Website:** [marcosrdac.com](www.marcosrdac.com)
