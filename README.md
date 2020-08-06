@@ -1,4 +1,4 @@
-AWM2D
+AWM2D (Acoustic Wave Modeling 2D)
 =====
 
 This software solves the 2D wave equation through the finite-difference method (FDM). It can also perform reverse time propagation of data in order to migrate seismic data.
