@@ -30,7 +30,8 @@ Three-layered geologic model (two interfaces)
 Contact
 =======
 
-  - **Name:** Marcos Reinan de Assis Conceição
+  - **Author:** Marcos Reinan de Assis Conceição
   - **E-mail:** [marcosrdac@gmail.com](mailto:marcosrdac@gmail.com)
   - **GitHub:** [marcosrdac](github.com/marcosrdac)
   - **Website:** [marcosrdac.com](www.marcosrdac.com)
+  - **Advisor:** Átila Saraiva Quintela Soares
