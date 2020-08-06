@@ -6,7 +6,7 @@
   <!--- make reverse propagation-->
   <!--- image condition-->
   <!--- subtract direct wave from seismogram before reverse propagation-->
-  <!--- create a module for your function definitions-->
+  <!--- create a module wave equation solving and related stuff-->
   <!--- create specific code for propagation w/wo saving-->
   - read velocity field from binary file
   - read signal from binary file

@@ -7,7 +7,7 @@ module Propagate
     # structures
     export FDM_Grid, Signal1D, Signal2D
     # functions
-    export rickerwave, hddarray, slice_seismogram, image_condition
+    export rickerwave, sourceposition, discarray, slice_seismogram, image_condition
     export propagate, propagate_save, propagate_save_seis, propagate_2d, propagate_2d_save, propagate_2d_save_seis
 
 
@@ -102,8 +102,20 @@ module Propagate
         position::CartesianIndex{2}
     end
 
+    
+    function sourceposition(arrayname::String, NZ::Integer, NX::Integer)
+        if arrayname === "split"
+            position = CartesianIndex(1, NX÷2+1)
+        elseif arrayname === "endon"
+            position = CartesianIndex(1, 1)
+        elseif arrayname === "center"
+            position = CartesianIndex(NZ÷2+1, NX÷2+1)
+        end
+        position
+    end
 
-    function hddarray(filename::String, mode::String="r", type::DataType=Float64, dims=())
+
+    function discarray(filename::String, mode::String="r", type::DataType=Float64, dims=())
         if occursin("w", mode)
             @assert dims !== ()
             @assert eltype(dims) <: Int64
@@ -158,9 +170,7 @@ module Propagate
         _A = zeros(eltype(A), (size(A, 1)+2*padding,
                             size(A, 2)+2*padding,
                             dim))
-        _A[1+padding:end-padding,
-        1+padding:end-padding,
-        1] .= A
+        _A[1+padding:end-padding, 1+padding:end-padding, 1] .= A
         _A
     end
 
@@ -346,12 +356,12 @@ module Propagate
         if occursin("save", funcname)
             if occursin("seis", funcname)
                 quote
-                    saved_seis = hddarray(filename, "w+",Float64, (nt, nx))
+                    saved_seis = discarray(filename, "w+",Float64, (nt, nx))
                     saved_seis[1,:] .= P[1,:,1]
                 end
             else
                 quote
-                    saved_P = hddarray(filename, "w+", Float64, (nz, nx, nt))
+                    saved_P = discarray(filename, "w+", Float64, (nz, nx, nt))
                     saved_P[:,:,1] .= P[:,:,1]
                 end
             end
@@ -458,10 +468,10 @@ module Propagate
     end
 
     function image_condition(P_file, reversed_P_file, migrated_file)
-        P = hddarray(P_file)
-        reversed_P = hddarray(reversed_P_file)
+        P = discarray(P_file)
+        reversed_P = discarray(reversed_P_file)
         (nz, nx, nt) = size(P)
-        migrated = hddarray(migrated_file, "w+", Float64, (nz, nx))
+        migrated = discarray(migrated_file, "w+", Float64, (nz, nx))
         migrated .= 0.
         for t in 1:nt
             @views migrated[:,:] .+= P[:,:,t] .* reversed_P[:,:,nt-t+1]
