@@ -9,7 +9,7 @@ AWM2D is written in Julia and advised by @AtilaSaraiva through weekly meetings.
 Examples
 ========
 
-Three layered geologic model (two interfaces)
+Three-layered geologic model (two interfaces)
 ---------------------------------------------
 
 ### P wave snaps
