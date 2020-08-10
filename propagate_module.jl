@@ -7,7 +7,7 @@ module Propagate
     # structures
     export FDM_Grid, Signal1D, Signal2D
     # functions
-    export rickerwave, sourceposition, discarray, slice_seismogram, image_condition
+    export gen_3lay_v, rickerwave, sourceposition, discarray, todiscarray, slice_seismogram, image_condition
     export propagate, propagate_save, propagate_save_seis, propagate_2d, propagate_2d_save, propagate_2d_save_seis
 
 
@@ -75,7 +75,7 @@ module Propagate
 
     """
         FDM_Grid(h::T, Δt::T, nz::Int, nx::Int, nt::Int)
-    Structure for defining a 2D finite differences grid.
+    Structure for defining a 2D finite-difference grid.
     """
     struct FDM_Grid{T}
         h::T
@@ -83,6 +83,22 @@ module Propagate
         nz::Int
         nx::Int
         nt::Int
+    end
+
+
+    function gen_3lay_v(nz, nx, h1, h2, V1, V2, V3)
+        # three layered model parameters
+        h1 = (1*nz)÷3
+        h2 = (1*nz)÷3
+        # reflectors position
+        z1 = h1
+        z2 = z1+h2
+        # defining velocity field
+        v = Array{Float64}(undef, (nz, nx))
+        v[   1:z1,  1:end] .= V1
+        v[z1+1:z2,  1:end] .= V2
+        v[z2+1:end, 1:end] .= V3
+        return v
     end
 
 
@@ -122,19 +138,22 @@ module Propagate
             io = open(filename, mode)
             _ndims = length(dims)
             write(io, _ndims, dims...)
-            A = mmap(io, Array{Float64, _ndims}, dims)
+            A = mmap(io, Array{type, _ndims}, dims)
             close(io)
         else
             io = open(filename, mode)
             _ndims = read(io, Int64)
             dims = Tuple(read(io, Int64) for i in 1:_ndims)
-            A = mmap(io, Array{Float64, _ndims}, dims)
+            A = mmap(io, Array{type, _ndims}, dims)
             close(io)
         end
         return(A)
     end
 
-    # DEF GET SEIS FROM MMAP/FILE
+    function todiscarray(filename::String, A::AbstractArray)
+        discA = discarray(filename, "w+", eltype(A), size(A))
+        discA .= A
+    end
 
 
     """

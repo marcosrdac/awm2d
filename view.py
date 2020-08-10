@@ -7,6 +7,7 @@ filename = "/mnt/hdd/home/tmp/awp_data/model.bin"
 filename, nt = "/mnt/hdd/home/tmp/awp_data/P.bin", 2900
 filename = "/mnt/hdd/home/tmp/awp_data/direct_seis.bin"
 filename = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
+filename = "/mnt/hdd/home/tmp/awp_data/v.bin"
 
 # reading file array
 io = open(filename, "r")
@@ -31,7 +32,8 @@ if len(shape) == 2:
     #plt.imshow(seis, aspect='auto')
     #plt.imshow(seis, aspect='auto', vmin=-.006, vmax=.006)
     #plt.imshow(seis, aspect='auto', vmin=-.01, vmax=.01)
-    plt.imshow(seis, aspect='auto', vmin=-.2, vmax=.2)
+    #plt.imshow(seis, aspect='auto', vmin=-.2, vmax=.2)
+    plt.imshow(seis, aspect='auto')
 else:
     plt.imshow(P)
 
