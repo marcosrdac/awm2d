@@ -13,7 +13,7 @@ using .Propagate
 include("./parameters.jl")
 
 "defining grid" |> println
-grid = FDM_Grid(h, Δt, NZ, NX, NT)
+grid = FDM_Grid(Δz, Δx, Δt, NZ, NX, NT)
 
 "defining signal" |> println
 position = sourceposition(array, NZ, NX)
@@ -34,4 +34,5 @@ P0 = zero(v)
 @println
 
 "source signal propagation" |> println
-@btime propagate($grid, $P0, $v, $signal; filename=$P_file)
+# @btime propagate_save($grid, $P0, $v, $signal; filename=$P_file)
+@time propagate(grid, P0, v, signal; filename=P_file)

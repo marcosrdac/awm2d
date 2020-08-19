@@ -96,7 +96,8 @@ module Propagate
     Structure for defining a 2D finite-difference grid.
     """
     struct FDM_Grid{T}
-        h::T
+        Δz::T
+        Δx::T
         Δt::T
         nz::Int
         nx::Int
@@ -257,14 +258,20 @@ module Propagate
     it actually calculates the laplacian without actually dividing the values by h².
     Then it's a h² laplacian function.
     """
-    function h²∇²(A, IL, dz, dx, ∇²_stencil)
-        global ∇², ∇²r, I∇²r, I1
-        result = zero(eltype(A))
-        @inbounds for I in CartesianIndices(∇²)
-            J = IL - I∇²r - I1 + I
-            result += A[J] * ∇²[I]
+    function h²∇²(A, I, ΔtoΔz², ΔtoΔx², ∇²_stencil)
+        global ∇²r
+        z, x = Tuple(I)
+        resultz = zero(eltype(A))
+        resultx = zero(eltype(A))
+        @inbounds @simd for i in eachindex(∇²_stencil)
+            resultz += A[z-∇²r-1+i, x] .* ∇²_stencil[i]
         end
-        return result
+        resultz *= ΔtoΔz²
+        @inbounds @simd for i in eachindex(∇²_stencil)
+            resultx += A[z, x-∇²r-1+i] .* ∇²_stencil[i]
+        end
+        resultx *= ΔtoΔx²
+        return resultz+resultx
     end
 
 
@@ -275,8 +282,8 @@ module Propagate
     respectively, the current pressure field and old pressure field arrays; Δtoh²
     is the relation Δt/h² used in the modeling process.
     """
-    function new_p(IP, Iv, cur_P, old_P, v, dz, dx, ∇²_stencil)
-        2*cur_P[IP] - old_P[IP] + v[Iv]^2 * Δtoh² * h²∇²(cur_P, IP, dz, dx, ∇²_stencil)
+    function new_p(IP, Iv, cur_P, old_P, v, ΔtoΔz², ΔtoΔx², ∇²_stencil)
+        2*cur_P[IP] - old_P[IP] + v[Iv]^2 * h²∇²(cur_P, IP, ΔtoΔz², ΔtoΔx², ∇²_stencil)
     end
 
 
@@ -444,15 +451,16 @@ module Propagate
         quote
     #==========================================================================#
     function $func(grid, P0, v, signal::AbstractSignal;
-                    filename::String="data.bin",
-                    stencil_order::Integer=2,
-                    direct_only::Bool=false,)
+                   filename::String="data.bin",
+                   stencil_order::Integer=2,
+                   direct_only::Bool=false,)
         global TAPER, POFFSET, IPOFFSET
-        @unpack h, Δt, nz, nx, nt = grid
-        ∇²_stencil = SArray{order+1}(central_difference_coefs(2, order))
+        @unpack Δz, Δx, Δt, nz, nx, nt = grid
+        ∇²_coefs = central_difference_coefs(2, stencil_order)
+        ∇²_stencil = SVector{length(∇²_coefs)}(∇²_coefs)
         borders = get_taper_sectors(nz, nx, TAPER)
         attenuation_factors = get_attenuation_factors(TAPER)
-        Δtoh² = Δt/h^2
+        ΔtoΔz², ΔtoΔx² = Δt/Δz^2, Δt/Δx^2
 
         _v = pad_extremes(v, TAPER)
         _signal = offset_signal(signal, IPOFFSET)
@@ -492,7 +500,8 @@ module Propagate
             # solve P wave equation
             @threads for Iv in CartesianIndices(_v)
                 IP = Iv + I∇²r
-                new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, dz, dx, ∇²_stencil)
+
+                new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, ΔtoΔz², ΔtoΔx², ∇²_stencil)
             end
             @savesnapifsave($func)
         end
