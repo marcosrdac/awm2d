@@ -67,5 +67,5 @@ So I'm using my HDD, as there is no difference in time wasted.
 # benchmarks for functions with metaprogramming
 
 propagate with metaprogramming
-(321,321,3000) !saving:             11.7 s
+(321,321,3000) !saving:             11.7 s (16,5 s)
 (321,321,3000) saving snaps to HDD: 19,9 s

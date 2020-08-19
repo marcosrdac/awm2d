@@ -8,8 +8,8 @@
   <!--- subtract direct wave from seismogram before reverse propagation-->
   <!--- create a module wave equation solving and related stuff-->
   <!--- create specific code for 1D/2D signal propagation w/ and w/o saving-->
-  - read velocity field from binary file
-  - read signal from binary file
+  <!--- read velocity field from binary file-->
+  <!--- read signal from binary file-->
   - dx != dz
   - local offset
   - various shots

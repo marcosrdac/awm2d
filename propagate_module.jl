@@ -1,8 +1,9 @@
 module Propagate
     using Base.Threads
-    using Mmap: mmap
     using Parameters
+    using SparseArrays
     using StaticArrays
+    using Mmap: mmap
 
     # structures
     export FDM_Grid, Signal1D, Signal2D
@@ -24,7 +25,32 @@ module Propagate
     """
     const ATTENUATION_COEFICIENT = 0.0035  # previously found
     #const ATTENUATION_COEFICIENT = 0.008    # Átila's
+    
 
+    function central_difference_coefs(degree::Integer, p::Integer)
+        # defining P matrix
+        P = Array{Float64}(undef, 2p+1, 2p+1)
+        P[1,:] .= 1
+        P[2,:] = -p:p
+        for i in 2:size(P, 1)
+            P[i,:] = P[2,:] .^ (i-1)
+        end
+        # defining d matrix
+        d = zeros(size(P, 1))
+        d[degree+1] = factorial(degree)
+        # solving equation P c = d
+        c = P\d
+    end
+
+    function laplaciankernel2d(order::Integer)
+        p = Int(floor((order+1)/2))
+        centers = [p÷2+1 for i in 1:p]
+        coefs = central_difference_coefs(2, p÷2)
+        v∇² = sparse(1:p, centers, coefs, p, p)
+        h∇² = sparse(centers, 1:p, coefs, p ,p)
+        ∇² = h∇² + v∇²
+    end
+    
 
     """
         ∇²
