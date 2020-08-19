@@ -12,17 +12,17 @@ Examples
 Three-layered geologic model (two interfaces)
 ---------------------------------------------
 
-### P wave snaps
+### P wave propagation snaps
 
 <p align="center"><img src="./example/example_P.gif" alt="P wave snaps">
 
 
-### RTM snaps
+### Reverse time P wave propagation snaps
 
 <p align="center"><img src="./example/example_reversed_P.gif" alt="RTM snaps">
 
 
-### RTM migration
+### Reverse time migration (RTM)
 
 <p align="center"><img src="./example/example_migrated.jpg" alt="Migrated data">
 
