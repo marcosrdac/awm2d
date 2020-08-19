@@ -27,7 +27,9 @@ module Propagate
     #const ATTENUATION_COEFICIENT = 0.008    # Átila's
     
 
-    function central_difference_coefs(degree::Integer, p::Integer)
+    function central_difference_coefs(degree::Integer, order::Integer)
+        @assert order % 2 === 0
+        p = Int(floor((order+1)/2))
         # defining P matrix
         P = Array{Float64}(undef, 2p+1, 2p+1)
         P[1,:] .= 1
@@ -40,17 +42,7 @@ module Propagate
         d[degree+1] = factorial(degree)
         # solving equation P c = d
         c = P\d
-    end
-
-    function laplaciankernel2d(order::Integer)
-        p = Int(floor((order+1)/2))
-        centers = [p÷2+1 for i in 1:p]
-        coefs = central_difference_coefs(2, p÷2)
-        v∇² = sparse(1:p, centers, coefs, p, p)
-        h∇² = sparse(centers, 1:p, coefs, p ,p)
-        ∇² = h∇² + v∇²
-    end
-    
+    end 
 
     """
         ∇²
@@ -265,7 +257,7 @@ module Propagate
     it actually calculates the laplacian without actually dividing the values by h².
     Then it's a h² laplacian function.
     """
-    function h²∇²(A, IL)
+    function h²∇²(A, IL, dz, dx, ∇²_stencil)
         global ∇², ∇²r, I∇²r, I1
         result = zero(eltype(A))
         @inbounds for I in CartesianIndices(∇²)
@@ -283,8 +275,8 @@ module Propagate
     respectively, the current pressure field and old pressure field arrays; Δtoh²
     is the relation Δt/h² used in the modeling process.
     """
-    function new_p(IP, Iv, cur_P, old_P, v, Δtoh²)
-        2*cur_P[IP] - old_P[IP] + v[Iv]^2 * Δtoh² * h²∇²(cur_P, IP)
+    function new_p(IP, Iv, cur_P, old_P, v, dz, dx, ∇²_stencil)
+        2*cur_P[IP] - old_P[IP] + v[Iv]^2 * Δtoh² * h²∇²(cur_P, IP, dz, dx, ∇²_stencil)
     end
 
 
@@ -453,9 +445,11 @@ module Propagate
     #==========================================================================#
     function $func(grid, P0, v, signal::AbstractSignal;
                     filename::String="data.bin",
+                    stencil_order::Integer=2,
                     direct_only::Bool=false,)
         global TAPER, POFFSET, IPOFFSET
         @unpack h, Δt, nz, nx, nt = grid
+        ∇²_stencil = SArray{order+1}(central_difference_coefs(2, order))
         borders = get_taper_sectors(nz, nx, TAPER)
         attenuation_factors = get_attenuation_factors(TAPER)
         Δtoh² = Δt/h^2
@@ -498,7 +492,7 @@ module Propagate
             # solve P wave equation
             @threads for Iv in CartesianIndices(_v)
                 IP = Iv + I∇²r
-                new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, Δtoh²)
+                new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, dz, dx, ∇²_stencil)
             end
             @savesnapifsave($func)
         end
