@@ -10,7 +10,8 @@
   <!--- create specific code for 1D/2D signal propagation w/ and w/o saving-->
   <!--- read velocity field from binary file-->
   <!--- read signal from binary file-->
-  - dx != dz
+  <!--- dx != dz-->
+  - different laplacian orders
   - local offset
   - various shots
   <!--- madagascar for julia: sadly, it yet doesn't exist-->

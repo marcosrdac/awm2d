@@ -259,7 +259,7 @@ module Propagate
     Then it's a h² laplacian function.
     """
     function h²∇²(A, I, ΔtoΔz², ΔtoΔx², ∇²_stencil)
-        global ∇²r
+        ∇²r = 1
         z, x = Tuple(I)
         resultz = zero(eltype(A))
         resultx = zero(eltype(A))
