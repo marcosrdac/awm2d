@@ -34,5 +34,5 @@ P0 = zero(v)
 @println
 
 "source signal propagation" |> println
-# @btime propagate_save($grid, $P0, $v, $signal; filename=$P_file)
-@time propagate(grid, P0, v, signal; filename=P_file)
+@btime propagate($grid, $P0, $v, $signal; filename=$P_file)
+# @time propagate(grid, P0, v, signal; filename=P_file)
