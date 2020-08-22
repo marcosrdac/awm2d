@@ -13,8 +13,8 @@ module Propagate
 
     const I1 = CartesianIndex(1, 1)
     const TAPER = 60
-    const ATTENUATION_COEFICIENT = 0.0035  # previously found
-    #const ATTENUATION_COEFICIENT = 0.008    # Átila's
+    const ATTENUATION = 0.0035  # previously found
+    # const ATTENUATION = 0.008   # Átila's
 
 
     """
@@ -188,19 +188,6 @@ module Propagate
 
 
     """
-    reduce_pointwise_product(A::AbstractArray, B::AbstractArray)
-    Performs the pointwise multiplication sum of A over B.
-    """
-    function reduce_pointwise_product(A::AbstractArray, B::AbstractArray)
-        prod_sum = zero(eltype(A))
-        @fastmath @inbounds @simd for i in eachindex(A)
-            prod_sum += A[i] .* B[i]
-        end
-        prod_sum
-    end
-
-
-    """
         h²∇²(A, IL)
     Function get the laplacian of a point inside an array. In order to optimize code,
     it actually calculates the laplacian without actually dividing the values by h².
@@ -210,14 +197,11 @@ module Propagate
         z, x = Tuple(I)
         r = length(stencil) ÷ 2
         sumz = sumx = zero(eltype(A))
-        #for i in -r:r
-        #    sumz += A[z+i, x] * stencil[i]
-        #end
-        @inbounds @simd for i in eachindex(stencil)
-            sumz += A[z-r-1+i, x] * stencil[i]
+        @fastmath @inbounds @simd for i in -r:r
+            sumz += A[z+i, x] * stencil[i]
         end
-        @inbounds @simd for i in eachindex(stencil)
-            sumx += A[z, x-r-1+i] * stencil[i]
+        @fastmath @inbounds @simd for i in -r:r
+            sumx += A[z, x+i] * stencil[i]
         end
         return sumz/Δz^2 + sumx/Δx^2
     end
@@ -259,18 +243,13 @@ module Propagate
         attenuation_factor(dist)
     Add description...
     """
-    function attenuation_factor(dist)
-        global ATTENUATION_COEFICIENT, TAPER
+    function attenuation_factor(dist, taper, attenuation)
         # for testing in python return(exp(-(0.0035*x))
-        exp(-(ATTENUATION_COEFICIENT*(TAPER-dist))^2)
+        exp(-(attenuation*(taper-dist))^2)
     end
 
-    function get_attenuation_factors(TAPER)
-        factors = Array{Float64, 1}(undef, TAPER)
-        for dist in eachindex(factors)
-            factors[dist] = attenuation_factor(dist)
-        end
-        return(factors)
+    function get_attenuation_factors(taper, attenuation)
+        [attenuation_factor(dist, taper, attenuation) for dist in 1.:taper]
     end
 
 
@@ -403,16 +382,16 @@ module Propagate
                    filename::String="data.bin",
                    stencil_order::Integer=2,
                    direct_only::Bool=false,)
-        global TAPER, ATTENUATION_COEFICIENT
+        global TAPER, ATTENUATION
         @unpack Δz, Δx, Δt, nz, nx, nt = grid
 
         borders = get_taper_sectors(nz, nx, TAPER)
-        attenuation_factors = get_attenuation_factors(TAPER)
+        attenuation_factors = get_attenuation_factors(TAPER,
+                                                      ATTENUATION)
 
         ∇²_stencil = get_∇²_stencil(stencil_order)
         ∇²r = length(∇²_stencil) ÷ 2
         POFFSET = TAPER+∇²r
-        I∇²r = CartesianIndex(∇²r, ∇²r)
 
         _v = pad_extremes(v, TAPER)
         _signal = offset_signal(signal, POFFSET)
@@ -424,10 +403,10 @@ module Propagate
             @views _v[:,TAPER+1:end-TAPER] .= repeat(v[1:1,:], nz+2*TAPER, 1)
         end
 
-        @initialize_saved_arrays($func)  # declares saved_P or saved_seis
+        @initialize_saved_arrays $func  # declares saved_P or saved_seis
 
-        # time loop, order is important
-        for T in eachindex(2:nt)  # CORRECT IT TO JUST USE RANGE
+        I∇²r = CartesianIndex(∇²r, ∇²r)
+        for T in 2:nt  # CORRECT IT TO JUST USE RANGE
             new_t = mod1(T,   3)
             cur_t = mod1(T-1, 3)
             old_t = mod1(T-2, 3)
@@ -447,7 +426,7 @@ module Propagate
             end
 
             # putting 1D or 2D signal
-            @putsignal($func)
+            @putsignal $func
 
             # solve P wave equation
             @threads for Iv in CartesianIndices(_v)
@@ -455,9 +434,9 @@ module Propagate
                 new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v,
                                   ∇²_stencil, Δz, Δx, Δt)
             end
-            @savesnapifsave($func)
+            @savesnapifsave $func
         end
-        @returnpropperarrayifnotsave($func)
+        @returnpropperarrayifnotsave $func
     end
     #==========================================================================#
         end |> eval
