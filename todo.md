@@ -11,7 +11,7 @@
   <!--- read velocity field from binary file-->
   <!--- read signal from binary file-->
   <!--- dx != dz-->
-  - different laplacian orders
+  <!--- different laplacian orders-->
   - local offset
   - various shots
   <!--- madagascar for julia: sadly, it yet doesn't exist-->

@@ -6,10 +6,9 @@ reversed_P_file="/mnt/hdd/home/tmp/awp_data/reversed_P.bin"
 migrated_file = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
 
 # mesh definition
-h = 1. # km
-Δz = 2. # km
-Δx = 1. # km
-Δt = .001 # s
+Δz = 1.0 # km
+Δx = 1.0 # km
+Δt = 0.001 # s
 NX = 321
 NZ = 321
 NT = 4500

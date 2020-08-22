@@ -184,7 +184,7 @@ module Propagate
 
 
     """
-        h²∇²(A, IL)
+        ∇²(A, IL)
     Function get the laplacian of a point inside an array. In order to optimize code,
     it actually calculates the laplacian without actually dividing the values by h².
     Then it's a h² laplacian function.
@@ -192,14 +192,14 @@ module Propagate
     function ∇²(A, I, stencil, Δz, Δx)
         z, x = Tuple(I)
         r = length(stencil) ÷ 2
-        sumz = sumx = zero(eltype(A))
+        ∇²_z = ∇²_x = zero(eltype(A))
         @fastmath @inbounds @simd for i in -r:r
-            sumz += A[z+i, x] * stencil[i]
+            ∇²_z += A[z+i, x] * stencil[r+i+1]
         end
         @fastmath @inbounds @simd for i in -r:r
-            sumx += A[z, x+i] * stencil[i]
+            ∇²_x += A[z, x+i] * stencil[r+i+1]
         end
-        return sumz/Δz^2 + sumx/Δx^2
+        ∇²_z/Δz^2 + ∇²_x/Δx^2
     end
 
 
