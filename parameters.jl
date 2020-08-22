@@ -15,4 +15,4 @@ NZ = 321
 NT = 4500
 
 # signal parameters
-array = "center"
+array = "split"

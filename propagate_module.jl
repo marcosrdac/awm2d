@@ -11,21 +11,25 @@ module Propagate
     export gen_3lay_v, rickerwave, sourceposition, discarray, todiscarray, slice_seismogram, image_condition
     export propagate, propagate_save, propagate_save_seis, propagate_2d, propagate_2d_save, propagate_2d_save_seis
 
-
-    """
-        TAPER
-    Tapering layer length.
-    """
+    const I1 = CartesianIndex(1, 1)
     const TAPER = 60
-
-
-    """
-        ATTENUATION_COEFICIENT
-    Positive coefficient value for attenuation in taper.
-    """
     const ATTENUATION_COEFICIENT = 0.0035  # previously found
     #const ATTENUATION_COEFICIENT = 0.008    # Átila's
-    
+
+
+    """
+        FDM_Grid(Δz::T, Δx::T, Δt::T, nz::Int, nx::Int, nt::Int)
+    Structure for defining a 2D finite-difference grid.
+    """
+    struct FDM_Grid{R, I}
+        Δz::R
+        Δx::R
+        Δt::R
+        nz::I
+        nx::I
+        nt::I
+    end
+
 
     function central_difference_coefs(degree::Integer, order::Integer)
         @assert order % 2 === 0
@@ -42,66 +46,12 @@ module Propagate
         d[degree+1] = factorial(degree)
         # solving equation P c = d
         c = P\d
-    end 
-
-    """
-        ∇²
-    The nine-stencil finite difference laplacian operator over a gaussian curve.
-    """
-    const ∇² = @SArray ([1/6.   4/6.  1/6.
-                         4/6. -20/6.  4/6.
-                         1/6.   4/6.  1/6.])
-
-    """
-        ∇²r
-    The radius of the laplacian operator used. Useful for padding arrays or getting
-    correct offsets.
-    """
-    const ∇²r = size(∇², 1)÷2
+    end
 
 
-    """
-        I∇²r
-    The radius of the laplacian operator used, in cartesian index. Useful for
-    offsetting positions.
-    """
-    const I∇²r = CartesianIndex(∇²r, ∇²r)
-
-
-    """
-        I1
-    Cartesian index pointing to [1, 1]. Useful for offsetting positions.
-    """
-    const I1 = CartesianIndex(1, 1)
-
-
-    """
-        POFFSET
-        Cartesian index of the [0, 0] position in padded  pressure field. Useful for
-    offsetting positions.
-    """
-    const POFFSET = TAPER+∇²r
-
-
-    """
-        IPOFFSET
-        Cartesian index of the [0, 0] position in padded  pressure field. Useful for
-    offsetting positions.
-    """
-    const IPOFFSET = CartesianIndex(POFFSET, POFFSET)
-
-
-    """
-        FDM_Grid(h::T, Δt::T, nz::Int, nx::Int, nt::Int)
-    Structure for defining a 2D finite-difference grid.
-    """
-    struct FDM_Grid{T}
-        Δz::T
-        Δx::T
-        Δt::T
-        nz::Int
-        nx::Int
-        nt::Int
+    function get_∇²_stencil(order)
+        coefs = central_difference_coefs(2, order)
+        stencil = SVector{length(coefs)}(coefs)
     end
 
 
@@ -137,7 +87,7 @@ module Propagate
         position::CartesianIndex{2}
     end
 
-    
+
     function sourceposition(arrayname::String, NZ::Integer, NX::Integer)
         if arrayname === "split"
             position = CartesianIndex(1, NX÷2+1)
@@ -157,21 +107,19 @@ module Propagate
             io = open(filename, mode)
             _ndims = length(dims)
             write(io, _ndims, dims...)
-            A = mmap(io, Array{type, _ndims}, dims)
-            close(io)
         else
             io = open(filename, mode)
             _ndims = read(io, Int64)
             dims = Tuple(read(io, Int64) for i in 1:_ndims)
-            A = mmap(io, Array{type, _ndims}, dims)
-            close(io)
         end
+        A = mmap(io, Array{type, _ndims}, dims)
+        close(io)
         return(A)
     end
 
     function todiscarray(filename::String, A::AbstractArray)
-        discA = discarray(filename, "w+", eltype(A), size(A))
-        discA .= A
+        _A = discarray(filename, "w+", eltype(A), size(A))
+        _A .= A
     end
 
 
@@ -258,20 +206,20 @@ module Propagate
     it actually calculates the laplacian without actually dividing the values by h².
     Then it's a h² laplacian function.
     """
-    function h²∇²(A, I, ΔtoΔz², ΔtoΔx², ∇²_stencil)
-        ∇²r = 1
+    function ∇²(A, I, stencil, Δz, Δx)
         z, x = Tuple(I)
-        resultz = zero(eltype(A))
-        resultx = zero(eltype(A))
-        @inbounds @simd for i in eachindex(∇²_stencil)
-            resultz += A[z-∇²r-1+i, x] .* ∇²_stencil[i]
+        r = length(stencil) ÷ 2
+        sumz = sumx = zero(eltype(A))
+        #for i in -r:r
+        #    sumz += A[z+i, x] * stencil[i]
+        #end
+        @inbounds @simd for i in eachindex(stencil)
+            sumz += A[z-r-1+i, x] * stencil[i]
         end
-        resultz *= ΔtoΔz²
-        @inbounds @simd for i in eachindex(∇²_stencil)
-            resultx += A[z, x-∇²r-1+i] .* ∇²_stencil[i]
+        @inbounds @simd for i in eachindex(stencil)
+            sumx += A[z, x-r-1+i] * stencil[i]
         end
-        resultx *= ΔtoΔx²
-        return resultz+resultx
+        return sumz/Δz^2 + sumx/Δx^2
     end
 
 
@@ -282,8 +230,8 @@ module Propagate
     respectively, the current pressure field and old pressure field arrays; Δtoh²
     is the relation Δt/h² used in the modeling process.
     """
-    function new_p(IP, Iv, cur_P, old_P, v, ΔtoΔz², ΔtoΔx², ∇²_stencil)
-        2*cur_P[IP] - old_P[IP] + v[Iv]^2 * h²∇²(cur_P, IP, ΔtoΔz², ΔtoΔx², ∇²_stencil)
+    function new_p(IP, Iv, cur_P, old_P, v, ∇²_stencil, Δz, Δx, Δt)
+        2*cur_P[IP] - old_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)
     end
 
 
@@ -370,8 +318,9 @@ module Propagate
 
 
     function offset_signal(signal::AbstractSignal, offset)
+        Ioffset = CartesianIndex(offset, offset)
         _signal = typeof(signal)(signal.signature,
-                                signal.position + offset)
+                                signal.position + Ioffset)
     end
 
 
@@ -454,17 +403,20 @@ module Propagate
                    filename::String="data.bin",
                    stencil_order::Integer=2,
                    direct_only::Bool=false,)
-        global TAPER, POFFSET, IPOFFSET
+        global TAPER, ATTENUATION_COEFICIENT
         @unpack Δz, Δx, Δt, nz, nx, nt = grid
-        ∇²_coefs = central_difference_coefs(2, stencil_order)
-        ∇²_stencil = SVector{length(∇²_coefs)}(∇²_coefs)
+
         borders = get_taper_sectors(nz, nx, TAPER)
         attenuation_factors = get_attenuation_factors(TAPER)
-        ΔtoΔz², ΔtoΔx² = Δt/Δz^2, Δt/Δx^2
+
+        ∇²_stencil = get_∇²_stencil(stencil_order)
+        ∇²r = length(∇²_stencil) ÷ 2
+        POFFSET = TAPER+∇²r
+        I∇²r = CartesianIndex(∇²r, ∇²r)
 
         _v = pad_extremes(v, TAPER)
-        _signal = offset_signal(signal, IPOFFSET)
-        _P = pad_zeros_add_axes(P0, TAPER+1, 3)
+        _signal = offset_signal(signal, POFFSET)
+        _P = pad_zeros_add_axes(P0, TAPER+∇²r, 3)
         # pressure field of interest
         P = @view _P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET, :]
 
@@ -475,7 +427,7 @@ module Propagate
         @initialize_saved_arrays($func)  # declares saved_P or saved_seis
 
         # time loop, order is important
-        for T in eachindex(2:nt)
+        for T in eachindex(2:nt)  # CORRECT IT TO JUST USE RANGE
             new_t = mod1(T,   3)
             cur_t = mod1(T-1, 3)
             old_t = mod1(T-2, 3)
@@ -500,8 +452,8 @@ module Propagate
             # solve P wave equation
             @threads for Iv in CartesianIndices(_v)
                 IP = Iv + I∇²r
-
-                new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v, ΔtoΔz², ΔtoΔx², ∇²_stencil)
+                new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v,
+                                  ∇²_stencil, Δz, Δx, Δt)
             end
             @savesnapifsave($func)
         end
