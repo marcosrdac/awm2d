@@ -129,7 +129,7 @@ module Propagate
     """
     function pad_extremes(A::AbstractArray, padding::Integer)
         _A = Array{eltype(A)}(undef, (size(A, 1)+2*padding,
-                                size(A, 2)+2*padding))
+                                      size(A, 2)+2*padding))
         # center
         _A[1+padding:size(A,1)+padding, 1+padding:size(A,2)+padding] .= A
         # borders
@@ -146,13 +146,9 @@ module Propagate
     end
 
 
-    """
-        pad_extremes(A::AbstractArray, padding::Integer=0, dim::Integer=1)
-    Pads extremes of A by a determined padding length, adds a dimension. All new elements are initialized as zeros.
-    """
     function pad_zeros_add_axes(A::AbstractArray,
-                                    padding::Integer=1,
-                                    dim::Integer=1)
+                                padding::Integer=1,
+                                dim::Integer=1)
         _A = zeros(eltype(A), (size(A, 1)+2*padding,
                             size(A, 2)+2*padding,
                             dim))
