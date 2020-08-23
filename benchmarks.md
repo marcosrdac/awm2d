@@ -69,3 +69,9 @@ So I'm using my HDD, as there is no difference in time wasted.
 propagate with metaprogramming
 (321,321,3000) !saving:             11.7 s (16,5 s)
 (321,321,3000) saving snaps to HDD: 19,9 s
+
+
+# 20200822 update: rewriting propagate without sectors
+
+(321,321,3000) !saving ORDER=2  6,66 s
+(321,321,3000) !saving ORDER=4  7,30 s

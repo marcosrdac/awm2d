@@ -37,12 +37,12 @@ def gen_P_gif(in_fn, out_fn):
                             offset=int(nz*nx*time_sep) * np.float64().itemsize)
         try:
             cur_P = cur_P.reshape((nz, nx), order='F')
-            #vmin, vmax = np.min(cur_P), np.max(cur_P)
+            vmin, vmax = np.min(cur_P), np.max(cur_P)
 
             ##im.set_clim(vmin=vmin, vmax=vmax)
 
-            #maxmod = np.max([np.abs(vmin), np.abs(vmax)])
-            #im.set_clim(vmin=-maxmod, vmax=maxmod)
+            maxmod = np.max([np.abs(vmin), np.abs(vmax)])
+            im.set_clim(vmin=-maxmod, vmax=maxmod)
 
             im.set_data(cur_P)
         except:

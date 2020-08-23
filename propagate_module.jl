@@ -192,14 +192,14 @@ module Propagate
     function ∇²(A, I, stencil, Δz, Δx)
         z, x = Tuple(I)
         r = length(stencil) ÷ 2
-        ∇²_z = ∇²_x = zero(eltype(A))
+        sumz = sumx = zero(eltype(A))
         @fastmath @inbounds @simd for i in -r:r
-            ∇²_z += A[z+i, x] * stencil[r+i+1]
+            sumz += A[z+i, x] * stencil[r+i+1]
         end
         @fastmath @inbounds @simd for i in -r:r
-            ∇²_x += A[z, x+i] * stencil[r+i+1]
+            sumx += A[z, x+i] * stencil[r+i+1]
         end
-        ∇²_z/Δz^2 + ∇²_x/Δx^2
+        sumz/Δz^2 + sumx/Δx^2
     end
 
 
@@ -216,79 +216,25 @@ module Propagate
 
 
     """
-        function nearest_border_distance(A, border, R)
-    Add description...
-    """
-    function nearest_border_distance(A, border, R)
-        # orthogonal
-        if border === 4      R[2]
-        elseif border === 8  R[1]
-        elseif border === 2  size(A, 1)-R[1]+1
-        elseif border === 6  size(A, 2)-R[2]+1
-        # diagonal
-        elseif border === 7  min(R[1], R[2])
-        elseif border === 9  min(size(A, 2)-R[2]+1, R[1])
-        elseif border === 1  min(size(A, 1)-R[1]+1, R[2])
-        elseif border === 3  min(size(A, 1)-R[1], size(A, 2)-R[2]) + 1
-        else zero(eltype(R))
-        end
-    end
-
-
-    """
         attenuation_factor(dist)
     Add description...
     """
-    function attenuation_factor(dist, taper, attenuation)
-        # for testing in python return(exp(-(0.0035*x))
-        exp(-(attenuation*(taper-dist))^2)
-    end
-
-    function get_attenuation_factors(taper, attenuation)
-        [attenuation_factor(dist, taper, attenuation) for dist in 1.:taper]
+    function attenuation_factor(depth, attenuation)
+        exp(-(attenuation*depth)^2)
     end
 
 
-    """
-        Sector(id::T, indices::CartesianIndices{2, Tuple{UnitRange{T},
-                                                        UnitRange{T}}})
-    Add description...
-    """
-    struct Sector{T}
-        id::T
-        indices::CartesianIndices{2, Tuple{UnitRange{T}, UnitRange{T}}}
-    end
-
-
-    """
-        get_tapered_sectors(nz, nx, taper=0)
-    Add description...
-    """
-    function get_tapered_sectors(nz, nx, taper=0)
-        sectors = Array{Sector}(undef, 9)
-        sectors[5] = Sector(5, CartesianIndices((taper+1:taper+nz,
-                                                taper+1:taper+nx)))
-        sectors[7] = Sector(7, CartesianIndices((1:taper,
-                                                1:taper)))
-        sectors[4] = Sector(4, CartesianIndices((taper+1:taper+nz,
-                                                1:taper)))
-        sectors[1] = Sector(1, CartesianIndices((taper+nz+1:nz+2taper,
-                                                1:taper)))
-        sectors[8] = Sector(8, CartesianIndices((1:taper,
-                                                taper+1:taper+nx)))
-        sectors[2] = Sector(2, CartesianIndices((taper+nz+1:nz+2taper,
-                                                taper+1:taper+nx)))
-        sectors[9] = Sector(9, CartesianIndices((1:taper,
-                                                taper+nx+1:nx+2taper)))
-        sectors[6] = Sector(6, CartesianIndices((taper+1:taper+nz,
-                                                taper+nx+1:nx+2taper)))
-        sectors[3] = Sector(3, CartesianIndices((taper+nz+1:nz+2taper,
-                                                taper+nx+1:nx+2taper)))
-        return(sectors)
-    end
-
-    function get_taper_sectors(nz, nx, taper)
-        return get_tapered_sectors(nz, nx, taper)[(1:end .!= 5)]
+    function get_attenuation_factors(A, taper, attenuation, offset=0)
+        factors = ones(Float64, (size(A,1), size(A,2)))
+        for i in 1:taper+offset
+            depth = taper-i+1
+            factors[i, i:end+1-i] .=
+            factors[i:end+1-i, i] .=
+            factors[end-i+1, i:end-i+1] .=
+            factors[i:end-i+1, end-i+1] .=
+                attenuation_factor(depth, attenuation)
+        end
+        factors
     end
 
 
@@ -381,10 +327,6 @@ module Propagate
         global TAPER, ATTENUATION
         @unpack Δz, Δx, Δt, nz, nx, nt = grid
 
-        borders = get_taper_sectors(nz, nx, TAPER)
-        attenuation_factors = get_attenuation_factors(TAPER,
-                                                      ATTENUATION)
-
         ∇²_stencil = get_∇²_stencil(stencil_order)
         ∇²r = length(∇²_stencil) ÷ 2
         POFFSET = TAPER+∇²r
@@ -399,6 +341,11 @@ module Propagate
             @views _v[:,TAPER+1:end-TAPER] .= repeat(v[1:1,:], nz+2*TAPER, 1)
         end
 
+        attenuation_factors = get_attenuation_factors(_P, TAPER,
+                                                      ATTENUATION,
+                                                      ∇²r)
+        taper_indices = findall(x -> x!==1.0, attenuation_factors)
+
         @initialize_saved_arrays $func  # declares saved_P or saved_seis
 
         I∇²r = CartesianIndex(∇²r, ∇²r)
@@ -411,16 +358,6 @@ module Propagate
             cur_P = @view _P[:,:,cur_t]
             new_P = @view _P[:,:,new_t]
 
-            # attenuating current and old iteration borders
-            for border in borders
-                @threads for Iv in border.indices
-                    IP = Iv + I∇²r
-                    dist = nearest_border_distance(_v, border.id, Iv)
-                    cur_P[IP] *= attenuation_factors[dist]
-                    old_P[IP] *= attenuation_factors[dist]
-                end
-            end
-
             # putting 1D or 2D signal
             @putsignal $func
 
@@ -430,6 +367,13 @@ module Propagate
                 new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v,
                                   ∇²_stencil, Δz, Δx, Δt)
             end
+
+            # attenuating current and old iteration borders
+            @threads for IP in  taper_indices
+                new_P[IP] *= attenuation_factors[IP]
+                cur_P[IP] *= attenuation_factors[IP]
+            end
+
             @savesnapifsave $func
         end
         @returnpropperarrayifnotsave $func

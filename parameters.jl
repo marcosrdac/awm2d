@@ -8,10 +8,11 @@ migrated_file = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
 # mesh definition
 Δz = 1.0 # km
 Δx = 1.0 # km
-Δt = 0.001 # s
+Δt = 0.01 # s
 NX = 321
 NZ = 321
-NT = 4500
+NT = 1000
+# NT = 450
 
 # signal parameters
 array = "split"
