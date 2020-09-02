@@ -199,7 +199,7 @@ module Propagate
         @fastmath @inbounds @simd for i in -r:r
             sumx += A[z, x+i] * stencil[r+i+1]
         end
-        sumz/Δz^2 + sumx/Δx^2
+        @fastmath sumz/Δz^2 + sumx/Δx^2
     end
 
 
@@ -211,15 +211,22 @@ module Propagate
     is the relation Δt/h² used in the modeling process.
     """
     function new_p(IP, Iv, cur_P, old_P, v, ∇²_stencil, Δz, Δx, Δt)
-        2*cur_P[IP] - old_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)
+        @fastmath 2*cur_P[IP] - old_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)
+    end
+
+    function new_attenuated_p(IP, Iv, cur_P, old_P, v, ∇²_stencil, Δz, Δx, Δt, attenuation_factor)  # attenuation_factor=oneunit(eltype(cur_P))
+        @fastmath begin
+            attenuation_factor * (2cur_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)) -
+            attenuation_factor^2 * old_P[IP] 
+        end
     end
 
 
     """
-        attenuation_factor(dist)
+        get_attenuation_factor(dist)
     Add description...
     """
-    function attenuation_factor(depth, attenuation)
+    function get_attenuation_factor(depth, attenuation)
         exp(-(attenuation*depth)^2)
     end
 
@@ -232,9 +239,10 @@ module Propagate
             factors[i:end+1-i, i] .=
             factors[end-i+1, i:end-i+1] .=
             factors[i:end-i+1, end-i+1] .=
-                attenuation_factor(depth, attenuation)
+                get_attenuation_factor(depth, attenuation)
         end
         factors
+        # SMatrix{size(factors)...}(factors)  # doesn't work with parallelization?
     end
 
 
@@ -334,6 +342,7 @@ module Propagate
         _v = pad_extremes(v, TAPER)
         _signal = offset_signal(signal, POFFSET)
         _P = pad_zeros_add_axes(P0, TAPER+∇²r, 3)
+        # _P = MMatrix{size(_P)...}(_P)  # doesn't work with parallelization?
         # pressure field of interest
         P = @view _P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET, :]
 
@@ -342,9 +351,9 @@ module Propagate
         end
 
         attenuation_factors = get_attenuation_factors(_P, TAPER,
-                                                      ATTENUATION,
-                                                      ∇²r)
-        taper_indices = findall(x -> x!==1.0, attenuation_factors)
+                                                          ATTENUATION,
+                                                          ∇²r)
+        # taper_indices = findall(x -> x!==1.0, attenuation_factors)
 
         @initialize_saved_arrays $func  # declares saved_P or saved_seis
 
@@ -364,14 +373,8 @@ module Propagate
             # solve P wave equation
             @threads for Iv in CartesianIndices(_v)
                 IP = Iv + I∇²r
-                new_P[IP] = new_p(IP, Iv, cur_P, old_P, _v,
-                                  ∇²_stencil, Δz, Δx, Δt)
-            end
-
-            # attenuating current and old iteration borders
-            @threads for IP in  taper_indices
-                new_P[IP] *= attenuation_factors[IP]
-                cur_P[IP] *= attenuation_factors[IP]
+                new_P[IP] = new_attenuated_p(IP, Iv, cur_P, old_P, _v,
+                                             ∇²_stencil, Δz, Δx, Δt, attenuation_factors[IP])
             end
 
             @savesnapifsave $func

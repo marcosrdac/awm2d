@@ -27,7 +27,7 @@ def gen_P_gif(in_fn, out_fn):
 
     im = ax.imshow(cur_P, aspect='auto', vmin=-.1, vmax=.1)
 
-    time_sep = 10
+    time_sep = 30
 
     def update(t):
         global maxmod
@@ -60,4 +60,4 @@ if __name__ == '__main__':
     reversed_P_file = "/mnt/hdd/home/tmp/awp_data/reversed_P.bin"
 
     gen_P_gif(P_file,            "animations/P.gif")
-    # gen_P_gif(reversed_P_file,   "animations/reversed_P.gif")
+    gen_P_gif(reversed_P_file,   "animations/reversed_P.gif")

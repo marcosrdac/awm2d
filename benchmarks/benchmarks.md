@@ -73,5 +73,13 @@ propagate with metaprogramming
 
 # 20200822 update: rewriting propagate without sectors
 
-(321,321,3000) !saving ORDER=2  6,66 s
-(321,321,3000) !saving ORDER=4  7,30 s
+(321,321,3000) !saving ORDER=2  6,7 s
+(321,321,3000) !saving ORDER=6  7,3 s
+
+
+# 20200823 update: with one only spatial loop
+
+(321,321,3000) !saving ORDER=2  6,2 s
+(321,321,3000) !saving ORDER=4  
+(321,321,3000) !saving ORDER=6  
+(321,321,3000) !saving ORDER=8  

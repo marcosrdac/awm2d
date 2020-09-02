@@ -12,7 +12,7 @@ using .Propagate
 include("./parameters.jl")
 
 "defining grid" |> println
-grid = FDM_Grid(h, Δt, NZ, NX, NT)
+grid = FDM_Grid(Δz, Δx, Δt, NZ, NX, NT)
 
 "defining signal" |> println
 position = sourceposition(array, NZ, NX)
@@ -28,14 +28,16 @@ P0 = zero(v)
 @println
 
 "source signal propagation" |> println
-@time propagate_save(grid, P0, v, signal; filename=P_file)
+@time propagate_save(grid, P0, v, signal;
+                     filename=P_file, stencil_order=stencil_order)
 
 
 @println
 
 
 "source signal direct wave propagation" |> println
-@time propagate_save_seis(grid, P0, v, signal; filename=direct_seis_file, direct_only=true)
+@time propagate_save_seis(grid, P0, v, signal;
+                          filename=direct_seis_file, direct_only=true, stencil_order=stencil_order)
 
 
 @println
@@ -53,7 +55,7 @@ begin
 
     seis_signal = Signal2D(seis, CartesianIndex(1, 1))
 end
-@time propagate_2d_save(grid, P0, v, seis_signal; filename=reversed_P_file)
+@time propagate_2d_save(grid, P0, v, seis_signal; filename=reversed_P_file, stencil_order=stencil_order)
 
 
 @println
