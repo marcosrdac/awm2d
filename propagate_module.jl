@@ -215,6 +215,11 @@ module Propagate
     end
 
     function new_attenuated_p(IP, Iv, cur_P, old_P, v, ∇²_stencil, Δz, Δx, Δt, attenuation_factor)  # attenuation_factor=oneunit(eltype(cur_P))
+        # new_p, but multiplied by an attenuation factor
+        # attenuation_factor * cur_P and attenuation_factor²*old_P in the wave equation:
+        #          *(att)     *(att²)                     *(att)
+        #     2*cur_P[IP] - old_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)
+        #
         @fastmath begin
             attenuation_factor * (2cur_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)) -
             attenuation_factor^2 * old_P[IP] 
