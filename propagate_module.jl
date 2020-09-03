@@ -435,42 +435,59 @@ module Propagate
 
     function propagate_shots
 
-
-    function migrate(grid, v, signals, P0=zero(v),
-                     taper=TAPER, attenuation=ATTENUATION;
-                     P_file::String,
-                     rev_P_file::String,
-                     migrated_file::String,
-                     stencil_order::Integer=2,
-                     direct_only::Bool=false,)
-        @unpack Δz, Δx, Δt, nz, nx, nt = grid
-
-        ∇²_stencil = get_∇²_stencil(stencil_order)
-        ∇²r = length(∇²_stencil) ÷ 2
-        offset = taper + ∇²r
-
-        _v = pad_extremes(v, taper)
-        _v_direct = deepcopy(_v)
-        _v_direct[:,taper+1:end-taper] .= repeat(v[1:1,:])
-        _signals = offset_signals(signals, offset)
-        _P = pad_zeros_add_axes(P0, offset, 3)
-        # pressure field of interest
-        P = @view _P[1+offset:end-offset, 1+offset:end-offset, :]
-
-        attenuation_factors = get_attenuation_factors(_P, taper,
-                                                      attenuation,
-                                                      ∇²r)
     end
 
 
+    # function migrate(grid, v, signals, P0=zero(v),
+                     # taper=TAPER, attenuation=ATTENUATION;
+                     # P_file::String,
+                     # rev_P_file::String,
+                     # migrated_file::String,
+                     # stencil_order::Integer=2,
+                     # direct_only::Bool=false,)
+        # @unpack Δz, Δx, Δt, nz, nx, nt = grid
+
+        # ∇²_stencil = get_∇²_stencil(stencil_order)
+        # ∇²r = length(∇²_stencil) ÷ 2
+        # offset = taper + ∇²r
+
+        # _v = pad_extremes(v, taper)
+        # _v_direct = deepcopy(_v)
+        # _v_direct[:,taper+1:end-taper] .= repeat(v[1:1,:])
+        # _signals = offset_signals(signals, offset)
+        # _P = pad_zeros_add_axes(P0, offset, 3)
+        # # pressure field of interest
+        # P = @view _P[1+offset:end-offset, 1+offset:end-offset, :]
+
+        # attenuation_factors = get_attenuation_factors(_P, taper,
+                                                      # attenuation,
+                                                      # ∇²r)
+    # end
+
+
+    """
+        P2seis(P)
+    Slices a seismogram out of a pressure field, P{Any, 3}(nz, nx, nt),
+    and returns a copy of it.
+    """
     function P2seis(P)
         seis = copy(P[1,:,:]')
     end
 
+    """
+        seis2signals(seis)
+    Transforms a seismogram array into an array of Signal1D's with reversed
+    wavelets. This array is useful in future in RTM steps.
+    """
     function seis2signals(seis)
         [Signal1D(1, x, 1, seis[end:-1:1, x]) for x in axes(seis, 2)]
     end
 
+    """
+        image_condition(P_file, reversed_P_file, migrated_file)
+    Perform image condition between to filenames pointing to binary files
+    formated as discarray does.
+    """
     function image_condition(P_file, reversed_P_file, migrated_file)
         P = discarray(P_file)
         reversed_P = discarray(reversed_P_file)
