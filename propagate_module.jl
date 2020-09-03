@@ -8,8 +8,11 @@ module Propagate
     # structures
     export FDM_Grid, Signal1D, Signal2D
     # functions
-    export gen_3lay_v, rickerwave, signal1d, sourceposition, discarray, todiscarray, slice_seismogram, image_condition
-    export propagate, propagate_save, propagate_save_seis, propagate_2d, propagate_2d_save, propagate_2d_save_seis
+    export gen_3lay_v
+    export rickerwave, signal1d, sourceposition
+    export P2seis, seis2signals, image_condition
+    export discarray, todiscarray
+    export propagate, propagate_save, propagate_save_seis
 
     const I1 = CartesianIndex(1, 1)
     const TAPER = 60
@@ -347,6 +350,9 @@ module Propagate
 
         I∇²r = CartesianIndex(∇²r, ∇²r)
         @inbounds for T in 2:nt
+            # new_t = mod1(T+1  3)
+            # cur_t = mod1(T,   3)
+            # old_t = mod1(T-1, 3)
             new_t = mod1(T,   3)
             cur_t = mod1(T-1, 3)
             old_t = mod1(T-2, 3)
@@ -376,8 +382,12 @@ module Propagate
         end |> eval
     end
 
-    function slice_seismogram(P)
+    function P2seis(P)
         seis = copy(P[1,:,:]')
+    end
+
+    function seis2signals(seis)
+        [Signal1D(1, x, 1, seis[end:-1:1, x]) for x in axes(seis, 2)]
     end
 
     function image_condition(P_file, reversed_P_file, migrated_file)
