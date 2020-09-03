@@ -78,8 +78,18 @@ propagate with metaprogramming
 
 
 # 20200823 update: with one only spatial loop
+(321,321,3000) !saving ORDER=2  6,37 s
+(321,321,3000) !saving ORDER=4  6.82 s
+(321,321,3000) !saving ORDER=6  7.63 s
+(321,321,3000) !saving ORDER=8  7.96 s
+- time(ORDER) = 5.8 + 0.28*ORDER (s)
+## non-trivial results (or at least good examples to future classes)
+  - more computation at one loop might be better than two loops (unless memmory access direction is not natural, as seen below)
 
-(321,321,3000) !saving ORDER=2  6,2 s
-(321,321,3000) !saving ORDER=4  
-(321,321,3000) !saving ORDER=6  
-(321,321,3000) !saving ORDER=8  
+# 20200903 update: with no fastmath and with a list of 1D signals being put
+(321,321,3000) !saving ORDER=2  5.84 s (6.03s, 5.85)
+## non-trivial results (or at least good examples to future classes)
+  - _P = MMatrix{size(_P)...}(_P) doesn't parallelize
+  - 2 stencil loops is better that only 1 (8.7% worse due to memmory allocation scheme)
+  - fastmath actually made things slower
+  - simple is usually better

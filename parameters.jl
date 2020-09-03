@@ -11,7 +11,9 @@ migrated_file = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
 Δt = 0.001 # s
 NX = 321
 NZ = 321
-NT = 4500
+# NT = 4500
+# NT = 3000
+NT = 30
 
 # stencil order
 stencil_order = 8

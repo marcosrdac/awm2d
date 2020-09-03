@@ -16,9 +16,9 @@ include("./parameters.jl")
 grid = FDM_Grid(Δz, Δx, Δt, NZ, NX, NT)
 
 "defining signal" |> println
-position = sourceposition(array, NZ, NX)
+(sz, sx) = sourceposition(array, NZ, NX)
 source_signature = discarray(source_signature_file)
-signal = Signal1D(source_signature, position)
+signal = signal1d(sz, sx, source_signature)
 
 "defining velocity model" |> println
 H1 = (1*NZ)÷3
@@ -34,10 +34,11 @@ P0 = zero(v)
 @println
 
 "source signal propagation" |> println
-#@btime propagate($grid, $P0, $v, $signal; filename=$P_file, stencil_order=2)
+# @btime propagate($grid, $P0, $v, $signal; filename=$P_file, stencil_order=2)
+# 7,559
 # @btime propagate($grid, $P0, $v, $signal; filename=$P_file, stencil_order=4)
 # @btime propagate($grid, $P0, $v, $signal; filename=$P_file, stencil_order=6)
 # @btime propagate($grid, $P0, $v, $signal; filename=$P_file, stencil_order=8)
 # @time propagate(grid, P0, v, signal; filename=P_file, stencil_order=2)
 # @time propagate_save(grid, P0, v, signal; filename=P_file, stencil_order=8)
-@time propagate(grid, P0, v, signal; filename=P_file, stencil_order=2)
+@time propagate_save(grid, P0, v, signal; filename=P_file, stencil_order=2)

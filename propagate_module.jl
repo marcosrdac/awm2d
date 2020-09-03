@@ -8,7 +8,7 @@ module Propagate
     # structures
     export FDM_Grid, Signal1D, Signal2D
     # functions
-    export gen_3lay_v, rickerwave, sourceposition, discarray, todiscarray, slice_seismogram, image_condition
+    export gen_3lay_v, rickerwave, signal1d, sourceposition, discarray, todiscarray, slice_seismogram, image_condition
     export propagate, propagate_save, propagate_save_seis, propagate_2d, propagate_2d_save, propagate_2d_save_seis
 
     const I1 = CartesianIndex(1, 1)
@@ -31,72 +31,31 @@ module Propagate
     end
 
 
-    function central_difference_coefs(degree::Integer, order::Integer)
-        @assert order % 2 === 0
-        p = Int(floor((order+1)/2))
-        # defining P matrix
-        P = Array{Float64}(undef, 2p+1, 2p+1)
-        P[1,:] .= 1
-        P[2,:] = -p:p
-        for i in 2:size(P, 1)
-            P[i,:] = P[2,:] .^ (i-1)
-        end
-        # defining d matrix
-        d = zeros(size(P, 1))
-        d[degree+1] = factorial(degree)
-        # solving equation P c = d
-        c = P\d
-    end
-
-
-    function get_∇²_stencil(order)
-        coefs = central_difference_coefs(2, order)
-        stencil = SVector{length(coefs)}(coefs)
-    end
-
-
-    function gen_3lay_v(nz, nx, h1, h2, V1, V2, V3)
-        # three layered model parameters
-        h1 = (1*nz)÷3
-        h2 = (1*nz)÷3
-        # reflectors position
-        z1 = h1
-        z2 = z1+h2
-        # defining velocity field
-        v = Array{Float64}(undef, (nz, nx))
-        v[   1:z1,  1:end] .= V1
-        v[z1+1:z2,  1:end] .= V2
-        v[z2+1:end, 1:end] .= V3
-        return v
-    end
-
-
     """
-        Signal(signature::AbstractArray{T}, position::CartesianIndex{2})
-    Structure for defining a source signal.
+    Structure for 1D signal definition.
     """
-    abstract type AbstractSignal end
-
-    struct Signal1D{T} <: AbstractSignal
-        signature::AbstractArray{T, 1}
-        position::CartesianIndex{2}
+    struct Signal1D{T}
+        z::Integer
+        x::Integer
+        t1::Integer
+        values::AbstractArray{T, 1}
     end
 
-    struct Signal2D{T} <: AbstractSignal
-        signature::AbstractArray{T, 2}
-        position::CartesianIndex{2}
+    signal1d(z, x, values, t1=1) = Signal1D(z, x, t1, values)
+
+    function offset_signal(signal::Signal1D, offset)
+        _signal = Signal1D(signal.z+offset,
+                           signal.x+offset,
+                           signal.t1,
+                           signal.values)
     end
 
-
-    function sourceposition(arrayname::String, NZ::Integer, NX::Integer)
-        if arrayname === "split"
-            position = CartesianIndex(1, NX÷2+1)
-        elseif arrayname === "endon"
-            position = CartesianIndex(1, 1)
-        elseif arrayname === "center"
-            position = CartesianIndex(NZ÷2+1, NX÷2+1)
+    function offset_signals(signals, offset)
+        if typeof(signals) <: Signal1D
+            [offset_signal(signals, offset)]
+        else
+            offset_signal.(signals, offset)
         end
-        position
     end
 
 
@@ -117,9 +76,37 @@ module Propagate
         return(A)
     end
 
+
     function todiscarray(filename::String, A::AbstractArray)
         _A = discarray(filename, "w+", eltype(A), size(A))
         _A .= A
+    end
+
+    function sourceposition(array::String, NZ::Integer, NX::Integer)
+        if array === "endon"       1, 1
+        elseif array === "split"   1, NX÷2+1
+        elseif array === "center"  NZ÷2+1, NX÷2+1
+        end
+    end
+
+    """
+        norm_ricker(t, σ)
+    Compute the negative normalized ricker function of t with standard deviation σ.
+    """
+    norm_ricker(t, σ) = 2/(√(3σ)π^(1/4)) * (1-(t/σ)^2) * exp(-t^2/(2σ^2))
+
+    """
+        rickerwave(ν::Real, Δt::Real)
+    Compute a ricker wave with main frequency ν, sampled in time intervals Δt.
+
+    For a stable signal assert ``ν << \\frac{1}{2 Δt}``.
+    """
+    function rickerwave(ν::Real, Δt::Real)
+        @assert ν < 0.2 * 1.0/(2.0*Δt)
+        interval = 2 * (2.2/(ν*Δt)) ÷ 2
+        t = -interval÷2:interval÷2 .* (π*ν*Δt)
+        ricker(t::Real) = (1-2t^2) * exp(-t^2)
+        ricker.(t)
     end
 
 
@@ -149,37 +136,49 @@ module Propagate
     function pad_zeros_add_axes(A::AbstractArray,
                                 padding::Integer=1,
                                 dim::Integer=1)
-        _A = zeros(eltype(A), (size(A, 1)+2*padding,
-                            size(A, 2)+2*padding,
-                            dim))
+        _A = zeros(eltype(A), (size(A, 1)+2*padding, size(A, 2)+2*padding, dim))
         _A[1+padding:end-padding, 1+padding:end-padding, 1] .= A
         _A
     end
 
 
-    """
-        norm_ricker(t::Real, σ::Real=1)
-    Compute the negative normalized ricker function of t with standard deviation σ.
-    """
-    function norm_ricker(t::Real, σ::Real=1)
-        2/(√(3*σ)π^(1/4)) * (1-(t/σ)^2) * exp(-t^2/(2σ^2))
+    function gen_3lay_v(nz, nx, h1, h2, V1, V2, V3)
+        # three layered model parameters
+        h1 = (1*nz)÷3
+        h2 = (1*nz)÷3
+        # reflectors position
+        z1 = h1
+        z2 = z1+h2
+        # defining velocity field
+        v = Array{Float64}(undef, (nz, nx))
+        v[   1:z1,  1:end] .= V1
+        v[z1+1:z2,  1:end] .= V2
+        v[z2+1:end, 1:end] .= V3
+        return v
     end
 
 
-    """
-        rickerwave(ν::Real, Δt::Real)
-    Compute a ricker wave with main frequency ν, sampled in time intervals Δt.
-
-    For a stable signal assert ``ν << \\frac{1}{2 Δt}``.
-    """
-    function rickerwave(ν::Real, Δt::Real)
-        @assert ν < 0.2 * 1.0/(2.0*Δt)
-        function ricker(t::Real)
-            return((1-2*t^2) * exp(-t^2))
+    function central_difference_coefs(degree::Integer, order::Integer)
+        @assert order % 2 === 0
+        p = Int(floor((order+1)/2))
+        # defining P matrix
+        P = Array{Float64}(undef, 2p+1, 2p+1)
+        P[1,:] .= 1
+        P[2,:] = -p:p
+        for i in 2:size(P, 1)
+            P[i,:] = P[2,:] .^ (i-1)
         end
-        len = 2 * (2.2/(ν*Δt)) ÷ 2
-        t = (π*ν*Δt) .* (-len÷2:len÷2)
-        ricker.(t)
+        # defining d matrix
+        d = zeros(size(P, 1))
+        d[degree+1] = factorial(degree)
+        # solving equation P c = d
+        c = P\d
+    end
+
+
+    function get_∇²_stencil(order)
+        coefs = central_difference_coefs(2, order)
+        stencil = SVector{length(coefs)}(coefs)
     end
 
 
@@ -193,36 +192,50 @@ module Propagate
         z, x = Tuple(I)
         r = length(stencil) ÷ 2
         sumz = sumx = zero(eltype(A))
-        @fastmath @inbounds @simd for i in -r:r
+        @inbounds @simd for i in -r:r
             sumz += A[z+i, x] * stencil[r+i+1]
         end
-        @fastmath @inbounds @simd for i in -r:r
+        @inbounds @simd for i in -r:r
             sumx += A[z, x+i] * stencil[r+i+1]
         end
-        @fastmath sumz/Δz^2 + sumx/Δx^2
+        sumz/Δz^2 + sumx/Δx^2
     end
 
 
     """
-        new_p(IP, Iv, cur_P, old_P, v, Δtoh²)
+        new_p(IP, Iv, cur_P, old_P, v, Δz, Δx, Δt)
     Function that calculates the next P value at point IP in pressure field,
-    considering propagation velocity at that point v[Iv]; cur_P and old_P are,
-    respectively, the current pressure field and old pressure field arrays; Δtoh²
-    is the relation Δt/h² used in the modeling process.
+    considering propagation velocity at that equal to point v[Iv]; cur_P and
+    old_P are, respectively, the current and old pressure field arrays.
     """
     function new_p(IP, Iv, cur_P, old_P, v, ∇²_stencil, Δz, Δx, Δt)
-        @fastmath 2*cur_P[IP] - old_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)
+        2*cur_P[IP] - old_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)
     end
 
-    function new_attenuated_p(IP, Iv, cur_P, old_P, v, ∇²_stencil, Δz, Δx, Δt, attenuation_factor)  # attenuation_factor=oneunit(eltype(cur_P))
-        # new_p, but multiplied by an attenuation factor
-        # attenuation_factor * cur_P and attenuation_factor²*old_P in the wave equation:
-        #          *(att)     *(att²)                     *(att)
-        #     2*cur_P[IP] - old_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)
-        #
-        @fastmath begin
-            attenuation_factor * (2cur_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)) -
-            attenuation_factor^2 * old_P[IP] 
+    """
+        new_p(IP, Iv, cur_P, old_P, v, Δz, Δx, Δt, attenuation_factor)
+    Function that calculates the next P value at point IP in pressure field,
+    considering propagation velocity at that point equal to v[Iv]. cur_P and
+    old_P are, respectively, the current and old pressure field arrays. The
+    result is multiplied by an attenuation_factor ∈ [0,1]. old_P is attenuated
+    twice, as in the usual taper attenuation scheme.
+    """
+    function new_p(IP, Iv, cur_P, old_P, v, ∇²_stencil, Δz, Δx, Δt, attenuation_factor)
+        attenuation_factor * begin 
+            2cur_P[IP]  +  v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx) -
+            attenuation_factor * old_P[IP]
+        end
+    end
+
+
+    function calculate_new_P!(old_P, cur_P, new_P!, _v,
+                     ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                     attenuation_factors)
+        @threads for Iv in CartesianIndices(_v)
+            IP = Iv + I∇²r
+            new_P![IP] = new_p(IP, Iv, cur_P, old_P, _v,
+                               ∇²_stencil, Δz, Δx, Δt,
+                               attenuation_factors[IP])
         end
     end
 
@@ -248,34 +261,6 @@ module Propagate
         end
         factors
         # SMatrix{size(factors)...}(factors)  # doesn't work with parallelization?
-    end
-
-
-    function offset_signal(signal::AbstractSignal, offset)
-        Ioffset = CartesianIndex(offset, offset)
-        _signal = typeof(signal)(signal.signature,
-                                signal.position + Ioffset)
-    end
-
-
-    # defining propagation functions
-    macro putsignal(func)
-        # adding signal to field before iteration
-        funcname = String(func)
-        if occursin("2d", funcname)
-            quote
-                if T <= size(_signal.signature, 1)
-                    cur_P[POFFSET+signal.position[1], POFFSET+1:POFFSET+nx] =
-                        _signal.signature[1+size(_signal.signature, 1)-T,:]
-                end
-            end
-        else
-            quote
-                if T <= length(_signal.signature)
-                    cur_P[_signal.position] = _signal.signature[T]
-                end
-            end
-        end |> esc
     end
 
     macro initialize_saved_arrays(func)
@@ -333,7 +318,7 @@ module Propagate
                  :propagate_2d, :propagate_2d_save, :propagate_2d_save_seis)
         quote
     #==========================================================================#
-    function $func(grid, P0, v, signal::AbstractSignal;
+    function $func(grid, P0, v, signals;
                    filename::String="data.bin",
                    stencil_order::Integer=2,
                    direct_only::Bool=false,)
@@ -345,25 +330,23 @@ module Propagate
         POFFSET = TAPER+∇²r
 
         _v = pad_extremes(v, TAPER)
-        _signal = offset_signal(signal, POFFSET)
-        _P = pad_zeros_add_axes(P0, TAPER+∇²r, 3)
-        # _P = MMatrix{size(_P)...}(_P)  # doesn't work with parallelization?
+        _signals = offset_signals(signals, POFFSET)
+        _P = pad_zeros_add_axes(P0, POFFSET, 3)
+
         # pressure field of interest
         P = @view _P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET, :]
 
-        if direct_only
-            @views _v[:,TAPER+1:end-TAPER] .= repeat(v[1:1,:], nz+2*TAPER, 1)
-        end
+        direct_only && @views _v[:,TAPER+1:end-TAPER] .= repeat(v[1:1,:],
+                                                                nz+2TAPER, 1)
 
         attenuation_factors = get_attenuation_factors(_P, TAPER,
-                                                          ATTENUATION,
-                                                          ∇²r)
-        # taper_indices = findall(x -> x!==1.0, attenuation_factors)
+                                                      ATTENUATION,
+                                                      ∇²r)
 
         @initialize_saved_arrays $func  # declares saved_P or saved_seis
 
         I∇²r = CartesianIndex(∇²r, ∇²r)
-        for T in 2:nt  # CORRECT IT TO JUST USE RANGE
+        @inbounds for T in 2:nt
             new_t = mod1(T,   3)
             cur_t = mod1(T-1, 3)
             old_t = mod1(T-2, 3)
@@ -372,15 +355,18 @@ module Propagate
             cur_P = @view _P[:,:,cur_t]
             new_P = @view _P[:,:,new_t]
 
-            # putting 1D or 2D signal
-            @putsignal $func
-
-            # solve P wave equation
-            @threads for Iv in CartesianIndices(_v)
-                IP = Iv + I∇²r
-                new_P[IP] = new_attenuated_p(IP, Iv, cur_P, old_P, _v,
-                                             ∇²_stencil, Δz, Δx, Δt, attenuation_factors[IP])
+            # putting 1D signals
+            @inbounds @simd for signal in _signals
+                T_signal = T - signal.t1  # for T loops from 2, not 1
+                if (signal.t1 <= T) && (T_signal <= length(signal.values))
+                    cur_P[signal.z, signal.x] = signal.values[T_signal]
+                end
             end
+
+            # solve P equation
+            calculate_new_P!(old_P, cur_P, new_P, _v,
+                             ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                             attenuation_factors)
 
             @savesnapifsave $func
         end
