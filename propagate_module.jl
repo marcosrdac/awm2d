@@ -327,17 +327,17 @@ module Propagate
 
         ∇²_stencil = get_∇²_stencil(stencil_order)
         ∇²r = length(∇²_stencil) ÷ 2
-        POFFSET = TAPER+∇²r
+        offset = TAPER + ∇²r
 
         _v = pad_extremes(v, TAPER)
-        _signals = offset_signals(signals, POFFSET)
-        _P = pad_zeros_add_axes(P0, POFFSET, 3)
+        _signals = offset_signals(signals, offset)
+        _P = pad_zeros_add_axes(P0, offset, 3)
 
         # pressure field of interest
-        P = @view _P[1+POFFSET:end-POFFSET, 1+POFFSET:end-POFFSET, :]
+        P = @view _P[1+offset:end-offset, 1+offset:end-offset, :]
 
         direct_only && @views _v[:,TAPER+1:end-TAPER] .= repeat(v[1:1,:],
-                                                                nz+2TAPER, 1)
+                                                                nz + 2TAPER, 1)
 
         attenuation_factors = get_attenuation_factors(_P, TAPER,
                                                       ATTENUATION,
