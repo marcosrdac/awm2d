@@ -1,20 +1,22 @@
 # To do  
 
-<!--- solve wave equation-->
-<!--- add taper-->
-<!--- save time snaps to binary file-->
-<!--- get a better taper-->
-<!--- generate synthetic data-->
-<!--- make reverse propagation-->
-<!--- image condition-->
-<!--- subtract direct wave from seismogram before reverse propagation-->
-<!--- create a module wave equation solving and related stuff-->
-<!--- create specific code for 1D/2D signal propagation w/ and w/o saving-->
-<!--- read velocity field from binary file-->
-<!--- read signal from binary file-->
-<!--- dx != dz-->
-<!--- different laplacian orders-->
-- Signal1d/Signal2d -> Vector{Signal1d}(n_sources)
-- local offset
-- various shots
-<!--- madagascar for julia: sadly, it yet doesn't exist-->
+- [X] solve wave equation
+- [X] add taper
+- [X] save time snaps to binary file
+- [X] get a better taper
+- [X] generate synthetic data
+- [X] make reverse propagation
+- [X] image condition
+- [X] subtract direct wave from seismogram before reverse propagation
+- [X] create a module wave equation solving and related stuff
+- [X] create specific code for 1D/2D signal propagation w/ and w/o saving
+- [X] read velocity field from binary file
+- [X] read signal from binary file
+- [X] dx != dz
+- [X] different laplacian orders
+- [X] Signal1d/Signal2d -> Vector{Signal1d}(n_sources)
+- [X] code cleanup
+- [ ] sourceposition --> local offsets (source position, n_recept., spacing, array)
+- [ ] generate local offset --> one shot
+- [ ] generate local offset --> various shots
+- [.] madagascar for julia: sadly, it yet doesn't exist

@@ -5,8 +5,9 @@ module Propagate
     using StaticArrays
     using Mmap: mmap
 
+
     # structures
-    export FDM_Grid, Signal1D, Signal2D
+    export FDM_Grid, Signal1D
     # functions
     export gen_3lay_v
     export rickerwave, signal1d, sourceposition
@@ -14,10 +15,10 @@ module Propagate
     export discarray, todiscarray
     export propagate, propagate_save, propagate_save_seis
 
-    const I1 = CartesianIndex(1, 1)
+
+    # standard constants
     const TAPER = 60
-    const ATTENUATION = 0.0035  # previously found
-    # const ATTENUATION = 0.008   # Átila's
+    const ATTENUATION = 0.0035  # found | Átila's = 0.008
 
 
     """
@@ -44,15 +45,30 @@ module Propagate
         values::AbstractArray{T, 1}
     end
 
+
+    """
+        signal1d(z, x, values, t1=1)
+    Function to conveniently create Signal1D structs.
+    """
     signal1d(z, x, values, t1=1) = Signal1D(z, x, t1, values)
 
-    function offset_signal(signal::Signal1D, offset)
+
+    """
+        offset_signal(signal::Signal1D, offset::Integer)
+    Offsets a Signal1D struct's position by some ammount.
+    """
+    function offset_signal(signal::Signal1D, offset::Integer)
         _signal = Signal1D(signal.z+offset,
                            signal.x+offset,
                            signal.t1,
                            signal.values)
     end
 
+    """
+        offset_signals(signals, offset::Integer)
+    Offsets one or an array of Signal1D's some ammount. The return type is
+    always Array{Signal1D, N}
+    """
     function offset_signals(signals, offset)
         if typeof(signals) <: Signal1D
             [offset_signal(signals, offset)]
@@ -62,6 +78,14 @@ module Propagate
     end
 
 
+    """
+        discarray(filename::String, mode::String="r",
+                  type::DataType=Float64, dims=())
+    This function is an interface to memory map creation. This interface has a
+    header of Int64 values, the first one of them being the number of dimensions
+    of the described array, _ndims, and then its dimensions. The body comes in 
+    sequence, and is a flattened version of that array.
+    """
     function discarray(filename::String, mode::String="r", type::DataType=Float64, dims=())
         if occursin("w", mode)
             @assert dims !== ()
@@ -80,42 +104,65 @@ module Propagate
     end
 
 
+    """
+        todiscarray(filename::String, A::AbstractArray)
+    This function takes an array, A, and creates a memory map with read and
+    write permissions at a file. This file contains A elements as content after
+    discarray header.
+    """
     function todiscarray(filename::String, A::AbstractArray)
         _A = discarray(filename, "w+", eltype(A), size(A))
         _A .= A
     end
 
-    function sourceposition(array::String, NZ::Integer, NX::Integer)
+
+    """
+        sourceposition(array::String, nz::Integer, nx::Integer)
+    Get's source position as a tuple of elements (sz, sx), according to the
+    seismic array gotten as parammeter. Possible array values are:
+        - "endon",
+        - "split",
+        - "center".
+    """
+    function sourceposition(array::String, nz::Integer, nx::Integer)
         if array === "endon"       1, 1
-        elseif array === "split"   1, NX÷2+1
-        elseif array === "center"  NZ÷2+1, NX÷2+1
+        elseif array === "split"   1, nx÷2+1
+        elseif array === "center"  nz÷2+1, nx÷2+1
         end
     end
 
+
     """
         norm_ricker(t, σ)
-    Compute the negative normalized ricker function of t with standard deviation σ.
+    Computes the negative normalized ricker function at t with standard
+    deviation σ.
     """
-    norm_ricker(t, σ) = 2/(√(3σ)π^(1/4)) * (1-(t/σ)^2) * exp(-t^2/(2σ^2))
+    ricker(t, σ) = 2/(√(3σ)π^(1/4)) * (1-(t/σ)^2) * exp(-t^2/(2σ^2))
+
+
+    """
+        ricker(t)
+    Computes the negative unnormalized ricker function at t.
+    """
+    ricker(t) = (1-2t^2) * exp(-t^2)
+
 
     """
         rickerwave(ν::Real, Δt::Real)
     Compute a ricker wave with main frequency ν, sampled in time intervals Δt.
-
     For a stable signal assert ``ν << \\frac{1}{2 Δt}``.
     """
     function rickerwave(ν::Real, Δt::Real)
         @assert ν < 0.2 * 1.0/(2.0*Δt)
         interval = 2 * (2.2/(ν*Δt)) ÷ 2
         t = -interval÷2:interval÷2 .* (π*ν*Δt)
-        ricker(t::Real) = (1-2t^2) * exp(-t^2)
         ricker.(t)
     end
 
 
     """
         pad_extremes(A::AbstractArray, padding::Integer)
-    Pads extremes of A by a determined padding length.
+    Extends extremes of A by a determined padding length.
     """
     function pad_extremes(A::AbstractArray, padding::Integer)
         _A = Array{eltype(A)}(undef, (size(A, 1)+2*padding,
@@ -135,7 +182,12 @@ module Propagate
         _A
     end
 
-
+    """
+        pad_zeros_add_axes(A::AbstractArray,
+                           padding::Integer=1,
+                           dim::Integer=1)
+    Pad extremes of A and add extra axes to it.
+    """
     function pad_zeros_add_axes(A::AbstractArray,
                                 padding::Integer=1,
                                 dim::Integer=1)
@@ -317,33 +369,32 @@ module Propagate
         end |> esc
     end
 
-    for func in (:propagate,    :propagate_save,    :propagate_save_seis,
-                 :propagate_2d, :propagate_2d_save, :propagate_2d_save_seis)
+    for func in (:propagate,    :propagate_save,    :propagate_save_seis,)
         quote
     #==========================================================================#
-    function $func(grid, P0, v, signals;
-                   filename::String="data.bin",
+    function $func(grid, v, signals, P0=zero(v),
+                   taper=TAPER, attenuation=ATTENUATION;
+                   filename::String,
                    stencil_order::Integer=2,
                    direct_only::Bool=false,)
-        global TAPER, ATTENUATION
         @unpack Δz, Δx, Δt, nz, nx, nt = grid
 
         ∇²_stencil = get_∇²_stencil(stencil_order)
         ∇²r = length(∇²_stencil) ÷ 2
-        offset = TAPER + ∇²r
+        offset = taper + ∇²r
 
-        _v = pad_extremes(v, TAPER)
+        _v = pad_extremes(v, taper)
         _signals = offset_signals(signals, offset)
         _P = pad_zeros_add_axes(P0, offset, 3)
 
         # pressure field of interest
         P = @view _P[1+offset:end-offset, 1+offset:end-offset, :]
 
-        direct_only && @views _v[:,TAPER+1:end-TAPER] .= repeat(v[1:1,:],
-                                                                nz + 2TAPER, 1)
+        direct_only && @views _v[:,taper+1:end-taper] .= repeat(v[1:1,:],
+                                                                nz + 2taper, 1)
 
-        attenuation_factors = get_attenuation_factors(_P, TAPER,
-                                                      ATTENUATION,
+        attenuation_factors = get_attenuation_factors(_P, taper,
+                                                      attenuation,
                                                       ∇²r)
 
         @initialize_saved_arrays $func  # declares saved_P or saved_seis
@@ -381,6 +432,36 @@ module Propagate
     #==========================================================================#
         end |> eval
     end
+
+    function propagate_shots
+
+
+    function migrate(grid, v, signals, P0=zero(v),
+                     taper=TAPER, attenuation=ATTENUATION;
+                     P_file::String,
+                     rev_P_file::String,
+                     migrated_file::String,
+                     stencil_order::Integer=2,
+                     direct_only::Bool=false,)
+        @unpack Δz, Δx, Δt, nz, nx, nt = grid
+
+        ∇²_stencil = get_∇²_stencil(stencil_order)
+        ∇²r = length(∇²_stencil) ÷ 2
+        offset = taper + ∇²r
+
+        _v = pad_extremes(v, taper)
+        _v_direct = deepcopy(_v)
+        _v_direct[:,taper+1:end-taper] .= repeat(v[1:1,:])
+        _signals = offset_signals(signals, offset)
+        _P = pad_zeros_add_axes(P0, offset, 3)
+        # pressure field of interest
+        P = @view _P[1+offset:end-offset, 1+offset:end-offset, :]
+
+        attenuation_factors = get_attenuation_factors(_P, taper,
+                                                      attenuation,
+                                                      ∇²r)
+    end
+
 
     function P2seis(P)
         seis = copy(P[1,:,:]')
