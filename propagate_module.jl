@@ -10,10 +10,10 @@ module Propagate
     export FDM_Grid, Signal1D
     # functions
     export gen_3lay_v
-    export rickerwave, signal1d, sourceposition
+    export rickerwave, signal1d, sourceposition, shotsposition
     export P2seis, seis2signals, image_condition
     export discarray, todiscarray
-    export propagate, propagate_save, propagate_save_seis
+    export propagate, propagate_save, propagate_save_seis, propagate_shots
 
 
     # standard constants
@@ -83,7 +83,7 @@ module Propagate
                   type::DataType=Float64, dims=())
     This function is an interface to memory map creation. This interface has a
     header of Int64 values, the first one of them being the number of dimensions
-    of the described array, _ndims, and then its dimensions. The body comes in 
+    of the described array, _ndims, and then its dimensions. The body comes in
     sequence, and is a flattened version of that array.
     """
     function discarray(filename::String, mode::String="r", type::DataType=Float64, dims=())
@@ -124,12 +124,26 @@ module Propagate
         - "split",
         - "center".
     """
-    function sourceposition(array::String, nz::Integer, nx::Integer)
-        if array === "endon"       1, 1
-        elseif array === "split"   1, nx÷2+1
-        elseif array === "center"  nz÷2+1, nx÷2+1
+    function sourceposition(array::String, z, x)
+        array==="endon"  && (pos=(z[1],          x[1]))
+        array==="split"  && (pos=(z[1],          reduce(+,x)÷2))
+        array==="center" && (pos=(reduce(+,x)÷2, reduce(+,x)÷2))
+        return pos
+    end
+
+    sourceposition(array::String, x) = sourceposition(array, 1, x)
+
+    function receptorpositions(array::String, n, Δx, sx)
+        if array==="endon"
+            span = collect(sx+Δx : Δx : sx+n*Δx)
+        elseif array==="split"
+            span = [collect(sx-Δx : -Δx : sx-(n÷2)*Δx)
+                    collect(sx+Δx : +Δx : sx+n*Δx)]
+        elseif array==="center"
+            receptorpositions(array, n, Δx, sx)
         end
     end
+
 
 
     """
@@ -264,7 +278,7 @@ module Propagate
     old_P are, respectively, the current and old pressure field arrays.
     """
     function new_p(IP, Iv, cur_P, old_P, v, ∇²_stencil, Δz, Δx, Δt)
-        2*cur_P[IP] - old_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)
+        2cur_P[IP] - old_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)
     end
 
     """
@@ -276,16 +290,16 @@ module Propagate
     twice, as in the usual taper attenuation scheme.
     """
     function new_p(IP, Iv, cur_P, old_P, v, ∇²_stencil, Δz, Δx, Δt, attenuation_factor)
-        attenuation_factor * begin 
+        attenuation_factor * begin
             2cur_P[IP]  +  v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx) -
             attenuation_factor * old_P[IP]
         end
     end
 
 
-    function calculate_new_P!(old_P, cur_P, new_P!, _v,
-                     ∇²_stencil, I∇²r, Δz, Δx, Δt,
-                     attenuation_factors)
+    function update_P!(new_P!, cur_P, old_P, _v,
+                       ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                       attenuation_factors)
         @threads for Iv in CartesianIndices(_v)
             IP = Iv + I∇²r
             new_P![IP] = new_p(IP, Iv, cur_P, old_P, _v,
@@ -421,9 +435,9 @@ module Propagate
             end
 
             # solve P equation
-            calculate_new_P!(old_P, cur_P, new_P, _v,
-                             ∇²_stencil, I∇²r, Δz, Δx, Δt,
-                             attenuation_factors)
+            update_P!(new_P, cur_P, old_P, _v,
+                      ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                      attenuation_factors)
 
             @savesnapifsave $func
         end
@@ -433,8 +447,81 @@ module Propagate
         end |> eval
     end
 
-    function propagate_shots
 
+    function propagate_shots(grid, v, shots_signals, nrec=10, Δxrec=1, P0=zero(v),
+                             taper=TAPER, attenuation=ATTENUATION;
+                             multi_seis_file::String,
+                             P_file::String,
+                             array::String="split",
+                             stencil_order::Integer=2,
+                             direct_only::Bool=false,)
+        @unpack Δz, Δx, Δt, nz, nx, nt = grid
+
+        nshots = length(shots_signals)
+        nwavelets = nshots * nrec
+
+        ∇²_stencil = get_∇²_stencil(stencil_order)
+        ∇²r = length(∇²_stencil) ÷ 2
+        offset = taper + ∇²r
+
+        _shot_signals = []
+        for signals in shots_signals
+            push!(_shot_signals, offset_signals(signals, offset))
+        end
+
+        _v = pad_extremes(v, taper)
+        _rev_P = pad_zeros_add_axes(P0, offset, 3)
+        _P = discarray(P_file, "w+", Float64, dims=(size(_rev_P, 1),
+                                                        size(_rev_P, 2),
+                                                        nt))
+
+        # pressure field of interest
+        P = @view _P[1+offset:end-offset, 1+offset:end-offset, :]
+
+        direct_only && @views _v[:,taper+1:end-taper] .= repeat(v[1:1,:],
+                                                                nz + 2taper, 1)
+
+        attenuation_factors = get_attenuation_factors(_P, taper,
+                                                      attenuation,
+                                                      ∇²r)
+
+        saved_seis = discarray(multi_seis_file, "w+", Float64, (nt, nwavelets))
+        # saved_seis[1,:] .= P[1,:,1]
+        
+
+        I∇²r = CartesianIndex(∇²r, ∇²r)
+        for S in 1:nshots
+            saved_seis_cur = @view saved_seis[1+(S-1)*nrec:S*nrec]
+            recpositions = receptorpositions(array, n, Δxrec, _signals[1].x)
+            _signals = _shot_signals[S]
+            _P .=0
+            P[:,:,0] .= P0
+
+            for T in 2:nt
+                new_t = mod1(T,   3)
+                cur_t = mod1(T-1, 3)
+                old_t = mod1(T-2, 3)
+
+                old_P = @view _P[:,:,old_t]
+                cur_P = @view _P[:,:,cur_t]
+                new_P = @view _P[:,:,new_t]
+
+                # putting 1D signals
+                @inbounds @simd for signal in _signals
+                    T_signal = T - signal.t1  # for T loops from 2, not 1
+                    if (signal.t1 <= T) && (T_signal <= length(signal.values))
+                        cur_P[signal.z, signal.x] = signal.values[T_signal]
+                    end
+                end
+
+                # solve P equation
+                update_P!(new_P, cur_P, old_P, _v,
+                          ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                          attenuation_factors)
+
+                saved_seis[T,recpositions] .= P[1,recpositions,new_t]
+            end
+        end
     end
 
 
