@@ -415,9 +415,6 @@ module Propagate
 
         I∇²r = CartesianIndex(∇²r, ∇²r)
         @inbounds for T in 2:nt
-            # new_t = mod1(T+1  3)
-            # cur_t = mod1(T,   3)
-            # old_t = mod1(T-1, 3)
             new_t = mod1(T,   3)
             cur_t = mod1(T-1, 3)
             old_t = mod1(T-2, 3)
@@ -428,7 +425,7 @@ module Propagate
 
             # putting 1D signals
             @inbounds @simd for signal in _signals
-                T_signal = T - signal.t1  # for T loops from 2, not 1
+                T_signal = T - signal.t1  # for T in 2:nt
                 if (signal.t1 <= T) && (T_signal <= length(signal.values))
                     cur_P[signal.z, signal.x] = signal.values[T_signal]
                 end
