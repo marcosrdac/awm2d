@@ -3,7 +3,7 @@ module Propagate
     using Parameters
     using SparseArrays
     using StaticArrays
-    using Mmap: mmap, sync!
+    using Mmap
 
 
     # structures
@@ -85,22 +85,34 @@ module Propagate
     of the described array, _ndims, and then its dimensions. The body comes in
     sequence, and is a flattened version of that array.
     """
-    function discarray(io, mode::String="r", type::DataType=Float64, dims=())
+    function discarray(io, mode::String="r", type::DataType=Float64, dims=(); 
+                       shared=false)
         if occursin("w", mode)
-            @assert dims !== ()
-            @assert eltype(dims) <: Int64
-            io = open(io, mode)
             _ndims = length(dims)
             write(io, _ndims, dims...)
         else
-            io = open(io, mode)
             _ndims = read(io, Int64)
             dims = Tuple(read(io, Int64) for i in 1:_ndims)
         end
-        A = mmap(io, Array{type, _ndims}, dims; shared=true)
+        A = Mmap.mmap(io, Array{type, _ndims}, dims; shared=shared)
         close(io)
         return(A)
     end
+
+    function discarray(filename::String, mode::String="r",
+                       type::DataType=Float64, dims=();
+                       shared=false,
+                       closeio=true)
+        if occursin("w", mode)
+            @assert dims !== ()
+            @assert eltype(dims) <: Int64
+        end
+        io = open(filename, mode)
+        A = discarray(io, mode, type, dims; shared=shared)
+        closeio && close(io)
+        return(A)
+    end
+
 
 
     """
@@ -397,30 +409,29 @@ module Propagate
 
     function propagate(grid, v, signals, P0=zero(v),
                        taper=TAPER, attenuation=ATTENUATION;
-                       P_file::String,
-                       save_seis::Bool=false,
+                       P_file="/tmp/P.bin",
+                       only_seis::Bool=false,
                        seis_file::String="",
-                       ntcache::Integer=3,
                        stencil_order::Integer=2,
                        direct_only::Bool=false,)
-        @assert nt_cache >= 3
+        ntcache = 3; @assert ntcache >= 3
         @unpack Δz, Δx, Δt, nz, nx, nt = grid
 
         ∇²_stencil = get_∇²_stencil(stencil_order)
         ∇²r = length(∇²_stencil) ÷ 2
-        offset = taper + ∇²r
-        (_nz, _nx) = (n+2offset for n in (nz, nx))
+
+        padding = taper + ∇²r
+        (_nz, _nx) = (n+2padding for n in (nz, nx))
 
         # defining pressure field
         _P = zeros(eltype(P0), (_nz, _nx, ntcache))
         # pressure field of interest
-        P = @view _P[1+offset:end-offset, 1+offset:end-offset, :]
+        P = @view _P[1+padding:end-padding, 1+padding:end-padding, :]
         P[:,:,1] .= P0
         # pressure field discarray
         saved_P = discarray(P_file, "w+", Float64, (nz, nx, nt))
-
         # offseting signals
-        _signals = offset_signals(signals, offset)
+        _signals = offset_signals(signals, padding)
 
         # defining velocity field
         _v = padextremes(v, taper)
@@ -441,9 +452,13 @@ module Propagate
         I∇²r = CartesianIndex(∇²r, ∇²r)
 
         @inbounds for T in 2:nt
-            old_P = @view _P[:,:,T]
-            cur_P = @view _P[:,:,T-1]
-            new_P = @view _P[:,:,T-2]
+            new_t = mod1(T,   ntcache)
+            cur_t = mod1(T-1, ntcache)
+            old_t = mod1(T-2, ntcache)
+
+            old_P = @view _P[:,:,old_t]
+            cur_P = @view _P[:,:,cur_t]
+            new_P = @view _P[:,:,new_t]
 
             # putting 1D signals
             @inbounds @simd for signal in _signals
@@ -453,10 +468,16 @@ module Propagate
                 end
             end
 
-            # solve P equation
-            update_P!(new_P, cur_P, old_P, _v,
-                      ∇²_stencil, I∇²r, Δz, Δx, Δt,
-                      attenuation_factors)
+           # solve P equation
+           update_P!(new_P, cur_P, old_P, _v,
+                     ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                     attenuation_factors)
+
+            if (new_t === ntcache) | (T == nt)
+                ntslice = (1:new_t) .+ ntcache*floor(Int64, (T-1)/ntcache)
+                # println("saving chunk ", ntslice)
+                saved_P[:,:,ntslice] .= P[:,:,1:new_t]
+            end
         end
     end
 

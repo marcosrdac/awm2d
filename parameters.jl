@@ -1,4 +1,5 @@
-P_file = "/mnt/hdd/home/tmp/awp_data/P.bin"
+# P_file = "/mnt/hdd/home/tmp/awp_data/P.bin"
+P_file = "/home/marcosrdac/P.bin"
 shots_file = "/mnt/hdd/home/tmp/awp_data/shots.bin"
 v_file = "/mnt/hdd/home/tmp/awp_data/v.bin"
 source_signature_file = "/mnt/hdd/home/tmp/awp_data/source_signature.bin"
