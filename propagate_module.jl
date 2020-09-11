@@ -360,25 +360,25 @@ module Propagate
         if occursin("save", funcname)
             if occursin("seis", funcname)
                 quote
-                    saved_seis = discarray(filename, "w+",Float64, (nt, nx))
-                    saved_seis[1,:] .= P[1,:,1]
+                    savedseis = discarray(filename, "w+",Float64, (nt, nx))
+                    savedseis[1,:] .= P[1,:,1]
                 end
             else
                 quote
-                    saved_P = discarray(filename, "w+", Float64, (nz, nx, nt))
-                    saved_P[:,:,1] .= P[:,:,1]
+                    savedP = discarray(filename, "w+", Float64, (nz, nx, nt))
+                    savedP[:,:,1] .= P[:,:,1]
                 end
             end
         else
             if occursin("seis", funcname)
                 quote
-                    saved_seis = Array{Float64, 2}(undef, (nt, nx))
-                    saved_seis[1,:] .= P[1,:,1]
+                    savedseis = Array{Float64, 2}(undef, (nt, nx))
+                    savedseis[1,:] .= P[1,:,1]
                 end
             else
                 quote
-                    saved_P = Array{Float64, 3}(undef, (nz, nx, nt))
-                    saved_P[:,:,1] .= P[:,:,1]
+                    savedP = Array{Float64, 3}(undef, (nz, nx, nt))
+                    savedP[:,:,1] .= P[:,:,1]
                 end
             end
         end |> esc
@@ -388,9 +388,9 @@ module Propagate
         funcname = String(func)
         if occursin("save", funcname)
             if occursin("seis", funcname)
-                :(saved_seis[T,:] .= P[1,:,new_t])
+                :(savedseis[T,:] .= P[1,:,new_t])
             else
-                :(saved_P[:,:,T] .= P[:,:,new_t])
+                :(savedP[:,:,T] .= P[:,:,new_t])
             end
         end |> esc
     end
@@ -399,22 +399,33 @@ module Propagate
         funcname = String(func)
         if ! occursin("save", funcname)
             if occursin("seis", funcname)
-                :(return(saved_seis))
+                :(return(savedseis))
             else
-                :(return(saved_P))
+                :(return(savedP))
             end
         end |> esc
     end
 
 
+    function putsignals!(signals, t, cur_P!)
+        @inbounds @simd for signal in signals
+            t_signal = t - signal.t1  # for T in 2:nt
+            if (signal.t1 <= t) && (t_signal <= length(signal.values))
+                cur_P![signal.z, signal.x] = signal.values[t_signal]
+            end
+        end
+    end
+
+
     function propagate(grid, v, signals, P0=zero(v),
                        taper=TAPER, attenuation=ATTENUATION;
-                       P_file="/tmp/P.bin",
-                       only_seis::Bool=false,
-                       seis_file::String="",
+                       Pfile="",
+                       seisfile="",
                        stencil_order::Integer=2,
                        direct_only::Bool=false,)
-        ntcache = 3; @assert ntcache >= 3
+        ntcache = 3
+        onlyseis = seisfile !== ""
+
         @unpack Δz, Δx, Δt, nz, nx, nt = grid
 
         ∇²_stencil = get_∇²_stencil(stencil_order)
@@ -428,8 +439,6 @@ module Propagate
         # pressure field of interest
         P = @view _P[1+padding:end-padding, 1+padding:end-padding, :]
         P[:,:,1] .= P0
-        # pressure field discarray
-        saved_P = discarray(P_file, "w+", Float64, (nz, nx, nt))
         # offseting signals
         _signals = offset_signals(signals, padding)
 
@@ -439,44 +448,41 @@ module Propagate
             _v[:,taper+1:end-taper] .= repeat(v[1:1,:], nz+2taper, 1)
         end
 
-        if save_seis
-            seis = discarray(filename, "w+", Float64, (nt, nx))
-            seis[1,:] .= P[1,:,1]
+        if onlyseis
+            savedseis = discarray(seisfile, "w+", Float64, (nt, nx))
+            savedseis[1,:] .= P[1,:,1]
+        else
+            savedP = discarray(Pfile, "w+", Float64, (nz, nx, nt))
         end
-
 
         attenuation_factors = get_attenuation_factors(_P, taper,
                                                       attenuation,
                                                       ∇²r)
 
         I∇²r = CartesianIndex(∇²r, ∇²r)
-
-        @inbounds for T in 2:nt
-            new_t = mod1(T,   ntcache)
-            cur_t = mod1(T-1, ntcache)
+        @inbounds for T in eltype(nt)(2):nt
             old_t = mod1(T-2, ntcache)
-
+            cur_t = mod1(T-1, ntcache)
+            new_t = mod1(T,   ntcache)
             old_P = @view _P[:,:,old_t]
             cur_P = @view _P[:,:,cur_t]
             new_P = @view _P[:,:,new_t]
 
             # putting 1D signals
-            @inbounds @simd for signal in _signals
-                T_signal = T - signal.t1  # for T in 2:nt
-                if (signal.t1 <= T) && (T_signal <= length(signal.values))
-                    cur_P[signal.z, signal.x] = signal.values[T_signal]
-                end
-            end
+            putsignals!(_signals, T, cur_P)
 
-           # solve P equation
-           update_P!(new_P, cur_P, old_P, _v,
-                     ∇²_stencil, I∇²r, Δz, Δx, Δt,
-                     attenuation_factors)
+            # solve P equation
+            update_P!(new_P, cur_P, old_P, _v,
+                      ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                      attenuation_factors)
 
-            if (new_t === ntcache) | (T == nt)
+            if new_t === ntcache | T === nt
                 ntslice = (1:new_t) .+ ntcache*floor(Int64, (T-1)/ntcache)
-                # println("saving chunk ", ntslice)
-                saved_P[:,:,ntslice] .= P[:,:,1:new_t]
+                if onlyseis
+                    savedseis[ntslice,:] .= P[1,:,1:new_t]'
+                else
+                    savedP[:,:,ntslice] .= P[:,:,1:new_t]
+                end
             end
         end
     end
@@ -484,8 +490,8 @@ module Propagate
 
     function propagate_shots(grid, v, shots_signals, nrec=10, Δxrec=1, P0=zero(v),
                              taper=TAPER, attenuation=ATTENUATION;
-                             multi_seis_file::String,
-                             P_file::String,
+                             multi_seisfile::String,
+                             Pfile::String,
                              array::String="split",
                              stencil_order::Integer=2,
                              direct_only::Bool=false,)
@@ -505,7 +511,7 @@ module Propagate
 
         _v = padextremes(v, taper)
         _rev_P = pad_zeros_add_axes(P0, offset, 3)
-        _P = discarray(P_file, "w+", Float64, dims=(size(_rev_P, 1),
+        _P = discarray(Pfile, "w+", Float64, dims=(size(_rev_P, 1),
                                                         size(_rev_P, 2),
                                                         nt))
 
@@ -519,13 +525,13 @@ module Propagate
                                                       attenuation,
                                                       ∇²r)
 
-        saved_seis = discarray(multi_seis_file, "w+", Float64, (nt, nwavelets))
-        # saved_seis[1,:] .= P[1,:,1]
+        savedseis = discarray(multi_seisfile, "w+", Float64, (nt, nwavelets))
+        # savedseis[1,:] .= P[1,:,1]
         
 
         I∇²r = CartesianIndex(∇²r, ∇²r)
         for S in 1:nshots
-            saved_seis_cur = @view saved_seis[1+(S-1)*nrec:S*nrec]
+            savedseis_cur = @view savedseis[1+(S-1)*nrec:S*nrec]
             recpositions = receptorpositions(array, n, Δxrec, _signals[1].x)
             _signals = _shot_signals[S]
             _P .=0
@@ -553,7 +559,7 @@ module Propagate
                           ∇²_stencil, I∇²r, Δz, Δx, Δt,
                           attenuation_factors)
 
-                saved_seis[T,recpositions] .= P[1,recpositions,new_t]
+                savedseis[T,recpositions] .= P[1,recpositions,new_t]
             end
         end
     end
@@ -561,8 +567,8 @@ module Propagate
 
     # function migrate(grid, v, signals, P0=zero(v),
                      # taper=TAPER, attenuation=ATTENUATION;
-                     # P_file::String,
-                     # rev_P_file::String,
+                     # Pfile::String,
+                     # rev_Pfile::String,
                      # migrated_file::String,
                      # stencil_order::Integer=2,
                      # direct_only::Bool=false,)
@@ -605,13 +611,13 @@ module Propagate
     end
 
     """
-        image_condition(P_file, reversed_P_file, migrated_file)
+        image_condition(Pfile, reversed_Pfile, migrated_file)
     Perform image condition between to filenames pointing to binary files
     formated as discarray does.
     """
-    function image_condition(P_file, reversed_P_file, migrated_file)
-        P = discarray(P_file)
-        reversed_P = discarray(reversed_P_file)
+    function image_condition(Pfile, reversed_Pfile, migrated_file)
+        P = discarray(Pfile)
+        reversed_P = discarray(reversed_Pfile)
         (nz, nx, nt) = size(P)
         migrated = discarray(migrated_file, "w+", Float64, (nz, nx))
         migrated .= 0.
