@@ -8,7 +8,8 @@ filename = "/mnt/hdd/home/tmp/awp_data/model.bin"
 filename = "/mnt/hdd/home/tmp/awp_data/direct_seis.bin"
 filename = "/mnt/hdd/home/tmp/awp_data/v.bin"
 filename = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
-filename, nt = "/mnt/hdd/home/tmp/awp_data/P.bin", 3000-1
+filename = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
+filename, nt = "/mnt/hdd/home/tmp/awp_data/P.bin", 10-1
 
 arr = discarray(filename, order='F')
 

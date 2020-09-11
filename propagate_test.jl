@@ -13,22 +13,24 @@ using .Propagate
 include("./parameters.jl")
 
 "defining grid" |> println
-grid = FDM_Grid(Δz, Δx, Δt, NZ, NX, NT)
+grid = FDMGrid(Δz, Δx, Δt, NZ, NX, NT)
 
 "defining signal" |> println
 (sz, sx) = sourceposition(array, NX)
-source_signature = discarray(source_signature_file)
-signal = signal1d(sz, sx, source_signature)
+sourcesignature = discarray(sourcesignaturefile)
+signal = signal1d(sz, sx, sourcesignature)
 
 "defining velocity model" |> println
-v = discarray(v_file)
+v = discarray(vfile)
 
 "defining initial pressure field" |> println
 P0 = zero(v)
+P0[5,5] = 1
 
 @println
 
 "source signal propagation" |> println
-# @btime propagate($grid, $v, $signal; P_file=$P_file, stencil_order=2)
-@time propagate(grid, v, signal; Pfile=P_file, stencil_order=2)
-# @time propagate(grid, v, signal; onlyseis=false, stencil_order=2)
+# @btime propagate($grid, $v, $signal; Pfile=$Pfile, stencilorder=2)
+@time propagate(grid, v, signal; Pfile=Pfile, stencilorder=2)
+
+run(`python view.py`)

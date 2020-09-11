@@ -17,12 +17,12 @@ grid = FDM_Grid(Δz, Δx, Δt, NZ, NX, NT)
 
 "defining signal" |> println
 (sz, sx) = sourceposition(array, NZ, NX)
-source_signature = discarray(source_signature_file)
+sourcesignature = discarray(sourcesignaturefile)
 
-shots_signals = [[signal1d(sz, sx, source_signature)]]
+shotssignals = [[signal1d(sz, sx, sourcesignature)]]
 
 "defining velocity model" |> println
-v = discarray(v_file)
+v = discarray(vfile)
 
 "defining initial pressure field" |> println
 # P0 = zero(v)
@@ -30,5 +30,6 @@ v = discarray(v_file)
 @println
 
 "source signal propagation" |> println
-# @btime propagate($grid, $v, $signal; filename=$P_file, stencil_order=2)
-@time propagate_shots(grid, v, shots_signals, nrec, Δxrec; P_file=P_file, multi_seis_file=multi_seis_file, stencil_order=2)
+# @btime propagate($grid, $v, $signal; filename=$Pfile, stencilorder=2)
+@time propagateshots(grid, v, shotssignals, nrec, Δxrec;
+                     Pfile=Pfile, seisfile=seisfile, multiseisfile=multiseisfile, stencilorder=2)

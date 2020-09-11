@@ -1,13 +1,13 @@
-P_file = "/mnt/hdd/home/tmp/awp_data/P.bin"
-# P_file = "/home/marcosrdac/P.bin"
-shots_file = "/mnt/hdd/home/tmp/awp_data/shots.bin"
-v_file = "/mnt/hdd/home/tmp/awp_data/v.bin"
-source_signature_file = "/mnt/hdd/home/tmp/awp_data/source_signature.bin"
-seis_file = "/mnt/hdd/home/tmp/awp_data/seis.bin"
-direct_seis_file = "/mnt/hdd/home/tmp/awp_data/direct_seis.bin"
-reversed_P_file="/mnt/hdd/home/tmp/awp_data/reversed_P.bin"
-migrated_file = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
-multi_seis_file = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
+Pfile = "/mnt/hdd/home/tmp/awp_data/P.bin"
+# Pfile = "/home/marcosrdac/P.bin"
+shotsfile = "/mnt/hdd/home/tmp/awp_data/shots.bin"
+vfile = "/mnt/hdd/home/tmp/awp_data/v.bin"
+sourcesignaturefile = "/mnt/hdd/home/tmp/awp_data/source_signature.bin"
+seisfile = "/mnt/hdd/home/tmp/awp_data/seis.bin"
+directseisfile = "/mnt/hdd/home/tmp/awp_data/direct_seis.bin"
+reversedPfile="/mnt/hdd/home/tmp/awp_data/reversed_P.bin"
+migratedfile = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
+multiseisfile = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
 
 # mesh definition
 Δz = 1.0 # km

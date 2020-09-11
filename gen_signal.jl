@@ -4,4 +4,4 @@ include("./propagate_module.jl")
 using .Propagate
 
 ν = 10 # Hz
-source_signature = todiscarray(source_signature_file, rickerwave(ν, Δt))
+source_signature = todiscarray(sourcesignaturefile, rickerwave(ν, Δt))

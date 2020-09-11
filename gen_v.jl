@@ -10,5 +10,5 @@ V1 = 3. # km/s
 V2 = 5. # km/s
 V3 = 9. # km/s
 
-v = gen_3lay_v(NZ, NX, H1, H2, V1, V2, V3)
-vdisc = todiscarray(v_file, v)
+v = gen3layv(NZ, NX, H1, H2, V1, V2, V3)
+vdisc = todiscarray(vfile, v)

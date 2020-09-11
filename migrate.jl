@@ -9,33 +9,33 @@ using .Propagate
 include("./parameters.jl")
 
 "defining grid" |> println
-grid = FDM_Grid(Δz, Δx, Δt, NZ, NX, NT)
+grid = FDMGrid(Δz, Δx, Δt, NZ, NX, NT)
 
 "defining velocity model" |> println
-v = discarray(v_file)
+v = discarray(vfile)
 
 "defining initial pressure field" |> println
 P0 = zero(v)
 
 "defining signal" |> println
-source_signature = discarray(source_signature_file)
+sourcesignature = discarray(sourcesignaturefile)
 (sz, sx) = sourceposition(array, NZ, NX)
-signal = signal1d(sz, sx, source_signature)
+signal = signal1d(sz, sx, sourcesignature)
 
 println()
 
 "source signal propagation" |> println
-@time propagate_save(grid, P0, v, signal;
-                     filename=P_file, stencil_order=stencil_order)
+@time propagatesave(grid, P0, v, signal;
+                     filename=Pfile, stencilorder=stencilorder)
 
 
 println()
 
 
 "source signal direct wave propagation" |> println
-@time propagate_save_seis(grid, P0, v, signal;
-                          filename=direct_seis_file, stencil_order=stencil_order,
-                          direct_only=true)
+@time propagatesaveseis(grid, P0, v, signal;
+                          filename=directseisfile, stencilorder=stencilorder,
+                          directonly=true)
 
 
 println()
@@ -43,21 +43,21 @@ println()
 
 "reverse wave propagation" |> println
 begin
-    seis = P2seis(discarray(P_file))
-    direct_seis = discarray(direct_seis_file)
+    seis = P2seis(discarray(Pfile))
+    directseis = discarray(directseisfile)
 
     # removing direct_wave from seismogram
-    @threads for I in eachindex(direct_seis)
-        seis[I] -= direct_seis[I]
+    @threads for I in eachindex(directseis)
+        seis[I] -= directseis[I]
     end
 
-    seis_signals = seis2signals(seis)
+    seissignals = seis2signals(seis)
 end
-@time propagate_save(grid, P0, v, seis_signals; filename=reversed_P_file, stencil_order=stencil_order)
+@time propagatesave(grid, P0, v, seissignals; filename=reversedPfile, stencilorder=stencilorder)
 
 
 println()
 
 
 "applying image condition" |> println
-@time image_condition(P_file, reversed_P_file, migrated_file)
+@time imagecondition(Pfile, reversedPfile, migratedfile)

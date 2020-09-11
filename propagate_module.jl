@@ -7,13 +7,13 @@ module Propagate
 
 
     # structures
-    export FDM_Grid, Signal1D
+    export FDMGrid, Signal1D
     # functions
-    export gen_3lay_v
+    export gen3layv
     export rickerwave, signal1d, sourceposition, shotsposition
-    export P2seis, seis2signals, image_condition
+    export P2seis, seis2signals, imagecondition
     export discarray, todiscarray
-    export propagate, propagate_save, propagate_save_seis, propagate_shots
+    export propagate, propagateshots
 
 
     # standard constants
@@ -22,10 +22,10 @@ module Propagate
 
 
     """
-        FDM_Grid(Δz::T, Δx::T, Δt::T, nz::Int, nx::Int, nt::Int)
+        FDMGrid(Δz::T, Δx::T, Δt::T, nz::Int, nx::Int, nt::Int)
     Structure for defining a 2D finite-difference grid.
     """
-    struct FDM_Grid{R, I}
+    struct FDMGrid{R, I}
         Δz::R
         Δx::R
         Δt::R
@@ -148,8 +148,8 @@ module Propagate
         if array==="endon"
             span = collect(sx+Δx : Δx : sx+n*Δx)
         elseif array==="split"
-            span = [collect(sx-Δx : -Δx : sx-(n÷2)*Δx)
-                    collect(sx+Δx : +Δx : sx+n*Δx)]
+            span = [collect(sx-(n÷2)*Δx : Δx : sx-Δx)
+                    collect(sx+Δx : Δx : sx+(n-n÷2)*Δx)]
         elseif array==="center"
             receptorpositions(array, n, Δx, sx)
         end
@@ -234,7 +234,7 @@ module Propagate
     end
 
 
-    function gen_3lay_v(nz, nx, h1, h2, V1, V2, V3)
+    function gen3layv(nz, nx, h1, h2, V1, V2, V3)
         # three layered model parameters
         h1 = (1*nz)÷3
         h2 = (1*nz)÷3
@@ -355,57 +355,6 @@ module Propagate
         # SMatrix{size(factors)...}(factors)  # doesn't work with parallelization?
     end
 
-    macro initialize_saved_arrays(func)
-        funcname = String(func)
-        if occursin("save", funcname)
-            if occursin("seis", funcname)
-                quote
-                    savedseis = discarray(filename, "w+",Float64, (nt, nx))
-                    savedseis[1,:] .= P[1,:,1]
-                end
-            else
-                quote
-                    savedP = discarray(filename, "w+", Float64, (nz, nx, nt))
-                    savedP[:,:,1] .= P[:,:,1]
-                end
-            end
-        else
-            if occursin("seis", funcname)
-                quote
-                    savedseis = Array{Float64, 2}(undef, (nt, nx))
-                    savedseis[1,:] .= P[1,:,1]
-                end
-            else
-                quote
-                    savedP = Array{Float64, 3}(undef, (nz, nx, nt))
-                    savedP[:,:,1] .= P[:,:,1]
-                end
-            end
-        end |> esc
-    end
-
-    macro savesnapifsave(func)
-        funcname = String(func)
-        if occursin("save", funcname)
-            if occursin("seis", funcname)
-                :(savedseis[T,:] .= P[1,:,new_t])
-            else
-                :(savedP[:,:,T] .= P[:,:,new_t])
-            end
-        end |> esc
-    end
-
-    macro returnpropperarrayifnotsave(func)
-        funcname = String(func)
-        if ! occursin("save", funcname)
-            if occursin("seis", funcname)
-                :(return(savedseis))
-            else
-                :(return(savedP))
-            end
-        end |> esc
-    end
-
 
     function putsignals!(signals, t, cur_P!)
         @inbounds @simd for signal in signals
@@ -417,18 +366,19 @@ module Propagate
     end
 
 
-    function propagate(grid, v, signals, P0=zero(v),
-                       taper=TAPER, attenuation=ATTENUATION;
+    function propagate(grid, v, signals,
+                       P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
                        Pfile="",
                        seisfile="",
-                       stencil_order::Integer=2,
+                       stencilorder::Integer=2,
                        direct_only::Bool=false,)
+        # TODO: add keyword to pre-load Pfile as mmap
         ntcache = 3
         onlyseis = seisfile !== ""
 
         @unpack Δz, Δx, Δt, nz, nx, nt = grid
 
-        ∇²_stencil = get_∇²_stencil(stencil_order)
+        ∇²_stencil = get_∇²_stencil(stencilorder)
         ∇²r = length(∇²_stencil) ÷ 2
 
         padding = taper + ∇²r
@@ -439,6 +389,7 @@ module Propagate
         # pressure field of interest
         P = @view _P[1+padding:end-padding, 1+padding:end-padding, :]
         P[:,:,1] .= P0
+
         # offseting signals
         _signals = offset_signals(signals, padding)
 
@@ -476,7 +427,7 @@ module Propagate
                       ∇²_stencil, I∇²r, Δz, Δx, Δt,
                       attenuation_factors)
 
-            if new_t === ntcache | T === nt
+            if (new_t === ntcache) | (T === nt)
                 ntslice = (1:new_t) .+ ntcache*floor(Int64, (T-1)/ntcache)
                 if onlyseis
                     savedseis[ntslice,:] .= P[1,:,1:new_t]'
@@ -485,111 +436,50 @@ module Propagate
                 end
             end
         end
+
+        if onlyseis
+            return savedseis
+        else
+            return savedP
+        end
     end
 
 
-    function propagate_shots(grid, v, shots_signals, nrec=10, Δxrec=1, P0=zero(v),
-                             taper=TAPER, attenuation=ATTENUATION;
-                             multi_seisfile::String,
-                             Pfile::String,
+    function propagateshots(grid, v, shotssignals, nrec=10, Δxrec=1,
+                             P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
+                             Pfile,
+                             seisfile,
+                             multiseisfile,
                              array::String="split",
-                             stencil_order::Integer=2,
-                             direct_only::Bool=false,)
-        @unpack Δz, Δx, Δt, nz, nx, nt = grid
-
-        nshots = length(shots_signals)
+                             stencilorder::Integer=2)
+        @unpack nt = grid
+        nshots = length(shotssignals)
         nwavelets = nshots * nrec
 
-        ∇²_stencil = get_∇²_stencil(stencil_order)
-        ∇²r = length(∇²_stencil) ÷ 2
-        offset = taper + ∇²r
+        multiseis = discarray(multiseisfile, "w+", Float64, (nt, nwavelets))
 
-        _shot_signals = []
-        for signals in shots_signals
-            push!(_shot_signals, offset_signals(signals, offset))
-        end
-
-        _v = padextremes(v, taper)
-        _rev_P = pad_zeros_add_axes(P0, offset, 3)
-        _P = discarray(Pfile, "w+", Float64, dims=(size(_rev_P, 1),
-                                                        size(_rev_P, 2),
-                                                        nt))
-
-        # pressure field of interest
-        P = @view _P[1+offset:end-offset, 1+offset:end-offset, :]
-
-        direct_only && @views _v[:,taper+1:end-taper] .= repeat(v[1:1,:],
-                                                                nz + 2taper, 1)
-
-        attenuation_factors = get_attenuation_factors(_P, taper,
-                                                      attenuation,
-                                                      ∇²r)
-
-        savedseis = discarray(multi_seisfile, "w+", Float64, (nt, nwavelets))
-        # savedseis[1,:] .= P[1,:,1]
-        
-
-        I∇²r = CartesianIndex(∇²r, ∇²r)
-        for S in 1:nshots
-            savedseis_cur = @view savedseis[1+(S-1)*nrec:S*nrec]
-            recpositions = receptorpositions(array, n, Δxrec, _signals[1].x)
-            _signals = _shot_signals[S]
-            _P .=0
-            P[:,:,0] .= P0
-
-            for T in 2:nt
-                new_t = mod1(T,   3)
-                cur_t = mod1(T-1, 3)
-                old_t = mod1(T-2, 3)
-
-                old_P = @view _P[:,:,old_t]
-                cur_P = @view _P[:,:,cur_t]
-                new_P = @view _P[:,:,new_t]
-
-                # putting 1D signals
-                @inbounds @simd for signal in _signals
-                    T_signal = T - signal.t1  # for T loops from 2, not 1
-                    if (signal.t1 <= T) && (T_signal <= length(signal.values))
-                        cur_P[signal.z, signal.x] = signal.values[T_signal]
-                    end
-                end
-
-                # solve P equation
-                update_P!(new_P, cur_P, old_P, _v,
-                          ∇²_stencil, I∇²r, Δz, Δx, Δt,
-                          attenuation_factors)
-
-                savedseis[T,recpositions] .= P[1,recpositions,new_t]
-            end
+        for (S, signals) in enumerate(shotssignals)
+            recpositions = receptorpositions(array, nrec, Δxrec, signals[1].x)
+            savedseis = @view multiseis[:,1+(S-1)*nrec:S*nrec]
+            seis = propagate(grid, v, signals, P0, taper, attenuation;
+                             seisfile, stencilorder, direct_only=false)
+            savedseis[:,:] .= seis[:,recpositions]
         end
     end
 
 
-    # function migrate(grid, v, signals, P0=zero(v),
-                     # taper=TAPER, attenuation=ATTENUATION;
-                     # Pfile::String,
-                     # rev_Pfile::String,
-                     # migrated_file::String,
-                     # stencil_order::Integer=2,
-                     # direct_only::Bool=false,)
-        # @unpack Δz, Δx, Δt, nz, nx, nt = grid
+    #function migrate(grid, v, shot_signals, nrec=10, Δxrec=1,
+    #                 P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
+    #                 Pfile,
+    #                 directseisfile,
+    #                 revPfile,
+    #                 migratedfile,
+    #                 multiseisfile="",
+    #                 array::String="split",
+    #                 stencilorder::Integer=2,
+    #                 direct_only::Bool=false,)
+    #end
 
-        # ∇²_stencil = get_∇²_stencil(stencil_order)
-        # ∇²r = length(∇²_stencil) ÷ 2
-        # offset = taper + ∇²r
-
-        # _v = padextremes(v, taper)
-        # _v_direct = deepcopy(_v)
-        # _v_direct[:,taper+1:end-taper] .= repeat(v[1:1,:])
-        # _signals = offset_signals(signals, offset)
-        # _P = pad_zeros_add_axes(P0, offset, 3)
-        # # pressure field of interest
-        # P = @view _P[1+offset:end-offset, 1+offset:end-offset, :]
-
-        # attenuation_factors = get_attenuation_factors(_P, taper,
-                                                      # attenuation,
-                                                      # ∇²r)
-    # end
 
 
     """
@@ -611,11 +501,11 @@ module Propagate
     end
 
     """
-        image_condition(Pfile, reversed_Pfile, migrated_file)
+        imagecondition(Pfile, reversed_Pfile, migrated_file)
     Perform image condition between to filenames pointing to binary files
     formated as discarray does.
     """
-    function image_condition(Pfile, reversed_Pfile, migrated_file)
+    function imagecondition(Pfile, reversed_Pfile, migrated_file)
         P = discarray(Pfile)
         reversed_P = discarray(reversed_Pfile)
         (nz, nx, nt) = size(P)
