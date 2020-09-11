@@ -3,7 +3,7 @@ module Propagate
     using Parameters
     using SparseArrays
     using StaticArrays
-    using Mmap: mmap
+    using Mmap: mmap, sync!
 
 
     # structures
@@ -79,26 +79,25 @@ module Propagate
 
 
     """
-        discarray(filename::String, mode::String="r",
-                  type::DataType=Float64, dims=())
+        discarray(io, mode::String="r", type::DataType=Float64, dims=())
     This function is an interface to memory map creation. This interface has a
     header of Int64 values, the first one of them being the number of dimensions
     of the described array, _ndims, and then its dimensions. The body comes in
     sequence, and is a flattened version of that array.
     """
-    function discarray(filename::String, mode::String="r", type::DataType=Float64, dims=())
+    function discarray(io, mode::String="r", type::DataType=Float64, dims=())
         if occursin("w", mode)
             @assert dims !== ()
             @assert eltype(dims) <: Int64
-            io = open(filename, mode)
+            io = open(io, mode)
             _ndims = length(dims)
             write(io, _ndims, dims...)
         else
-            io = open(filename, mode)
+            io = open(io, mode)
             _ndims = read(io, Int64)
             dims = Tuple(read(io, Int64) for i in 1:_ndims)
         end
-        A = mmap(io, Array{type, _ndims}, dims)
+        A = mmap(io, Array{type, _ndims}, dims; shared=true)
         close(io)
         return(A)
     end
@@ -415,6 +414,7 @@ module Propagate
         _P = discarray(P_file, "w+", Float64, (_nz, _nx, nt+2))
         # pressure field of interest
         P = @view _P[1+offset:end-offset, 1+offset:end-offset, 3:end]
+        # P[:,:,1] .= P0
 
         if save_seis
             seis = discarray(filename, "w+", Float64, (nt, nx))
@@ -447,8 +447,6 @@ module Propagate
             update_P!(new_P, cur_P, old_P, _v,
                       ∇²_stencil, I∇²r, Δz, Δx, Δt,
                       attenuation_factors)
-
-            # @savesnapifsave $func
         end
     end
 

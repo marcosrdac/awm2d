@@ -14,10 +14,10 @@ multi_seis_file = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
 NX = 321
 NZ = 321
 # NT = 4500
-# NT = 3000
+NT = 3000
 # NX = 50
 # NZ = 50
-NT = 500
+# NT = 500
 
 # stencil order
 stencil_order = 8
