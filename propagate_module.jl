@@ -400,8 +400,10 @@ module Propagate
                        P_file::String,
                        save_seis::Bool=false,
                        seis_file::String="",
+                       ntcache::Integer=3,
                        stencil_order::Integer=2,
                        direct_only::Bool=false,)
+        @assert nt_cache >= 3
         @unpack Δz, Δx, Δt, nz, nx, nt = grid
 
         ∇²_stencil = get_∇²_stencil(stencil_order)
@@ -409,28 +411,36 @@ module Propagate
         offset = taper + ∇²r
         (_nz, _nx) = (n+2offset for n in (nz, nx))
 
-        _signals = offset_signals(signals, offset)
-        _v = padextremes(v, taper)
-        _P = discarray(P_file, "w+", Float64, (_nz, _nx, nt+2))
+        # defining pressure field
+        _P = zeros(eltype(P0), (_nz, _nx, ntcache))
         # pressure field of interest
-        P = @view _P[1+offset:end-offset, 1+offset:end-offset, 3:end]
-        # P[:,:,1] .= P0
+        P = @view _P[1+offset:end-offset, 1+offset:end-offset, :]
+        P[:,:,1] .= P0
+        # pressure field discarray
+        saved_P = discarray(P_file, "w+", Float64, (nz, nx, nt))
+
+        # offseting signals
+        _signals = offset_signals(signals, offset)
+
+        # defining velocity field
+        _v = padextremes(v, taper)
+        if direct_only
+            _v[:,taper+1:end-taper] .= repeat(v[1:1,:], nz+2taper, 1)
+        end
 
         if save_seis
             seis = discarray(filename, "w+", Float64, (nt, nx))
             seis[1,:] .= P[1,:,1]
         end
 
-        if direct_only
-            _v[:,taper+1:end-taper] .= repeat(v[1:1,:], nz+2taper, 1)
-        end
 
         attenuation_factors = get_attenuation_factors(_P, taper,
                                                       attenuation,
                                                       ∇²r)
 
         I∇²r = CartesianIndex(∇²r, ∇²r)
-        @inbounds for T in 2 .+ (1:nt)
+
+        @inbounds for T in 2:nt
             old_P = @view _P[:,:,T]
             cur_P = @view _P[:,:,T-1]
             new_P = @view _P[:,:,T-2]
