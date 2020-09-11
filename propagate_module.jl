@@ -175,10 +175,10 @@ module Propagate
 
 
     """
-        pad_extremes(A::AbstractArray, padding::Integer)
+        padextremes(A::AbstractArray, padding::Integer)
     Extends extremes of A by a determined padding length.
     """
-    function pad_extremes(A::AbstractArray, padding::Integer)
+    function padextremes(A::AbstractArray, padding::Integer)
         _A = Array{eltype(A)}(undef, (size(A, 1)+2*padding,
                                       size(A, 2)+2*padding))
         # center
@@ -193,6 +193,18 @@ module Propagate
         _A[1+end-padding:end, 1:padding] .= A[end,1]
         _A[1+end-padding:end, 1+end-padding:end] .= A[end,end]
         _A[1:padding, 1+end-padding:end] .= A[1,end]
+        _A
+    end
+
+
+    """
+    padvalue(A::AbstractArray, padding::Integer=1, value=zero(eltype(A)))
+    Pad A copy 's extremes with value.
+    """
+    function padvalue(A::AbstractArray, padding::Integer=0, value=zero(eltype(A)))
+
+        _A = value .* ones(eltype(A), Tuple(dim+2padding for dim in size(A)))
+        _A[1+padding:end-padding, 1+padding:end-padding, 1] .= A
         _A
     end
 
@@ -383,45 +395,45 @@ module Propagate
         end |> esc
     end
 
-    for func in (:propagate,    :propagate_save,    :propagate_save_seis,)
-        quote
-    #==========================================================================#
-    function $func(grid, v, signals, P0=zero(v),
-                   taper=TAPER, attenuation=ATTENUATION;
-                   filename::String,
-                   stencil_order::Integer=2,
-                   direct_only::Bool=false,)
+
+    function propagate(grid, v, signals, P0=zero(v),
+                       taper=TAPER, attenuation=ATTENUATION;
+                       P_file::String,
+                       save_seis::Bool=false,
+                       seis_file::String="",
+                       stencil_order::Integer=2,
+                       direct_only::Bool=false,)
         @unpack Δz, Δx, Δt, nz, nx, nt = grid
 
         ∇²_stencil = get_∇²_stencil(stencil_order)
         ∇²r = length(∇²_stencil) ÷ 2
         offset = taper + ∇²r
+        (_nz, _nx) = (n+2offset for n in (nz, nx))
 
-        _v = pad_extremes(v, taper)
         _signals = offset_signals(signals, offset)
-        _P = pad_zeros_add_axes(P0, offset, 3)
-
+        _v = padextremes(v, taper)
+        _P = discarray(P_file, "w+", Float64, (_nz, _nx, nt+2))
         # pressure field of interest
-        P = @view _P[1+offset:end-offset, 1+offset:end-offset, :]
+        P = @view _P[1+offset:end-offset, 1+offset:end-offset, 3:end]
 
-        direct_only && @views _v[:,taper+1:end-taper] .= repeat(v[1:1,:],
-                                                                nz + 2taper, 1)
+        if save_seis
+            seis = discarray(filename, "w+", Float64, (nt, nx))
+            seis[1,:] .= P[1,:,1]
+        end
+
+        if direct_only
+            _v[:,taper+1:end-taper] .= repeat(v[1:1,:], nz+2taper, 1)
+        end
 
         attenuation_factors = get_attenuation_factors(_P, taper,
                                                       attenuation,
                                                       ∇²r)
 
-        @initialize_saved_arrays $func  # declares saved_P or saved_seis
-
         I∇²r = CartesianIndex(∇²r, ∇²r)
-        @inbounds for T in 2:nt
-            new_t = mod1(T,   3)
-            cur_t = mod1(T-1, 3)
-            old_t = mod1(T-2, 3)
-
-            old_P = @view _P[:,:,old_t]
-            cur_P = @view _P[:,:,cur_t]
-            new_P = @view _P[:,:,new_t]
+        @inbounds for T in 2 .+ (1:nt)
+            old_P = @view _P[:,:,T]
+            cur_P = @view _P[:,:,T-1]
+            new_P = @view _P[:,:,T-2]
 
             # putting 1D signals
             @inbounds @simd for signal in _signals
@@ -436,12 +448,8 @@ module Propagate
                       ∇²_stencil, I∇²r, Δz, Δx, Δt,
                       attenuation_factors)
 
-            @savesnapifsave $func
+            # @savesnapifsave $func
         end
-        @returnpropperarrayifnotsave $func
-    end
-    #==========================================================================#
-        end |> eval
     end
 
 
@@ -466,7 +474,7 @@ module Propagate
             push!(_shot_signals, offset_signals(signals, offset))
         end
 
-        _v = pad_extremes(v, taper)
+        _v = padextremes(v, taper)
         _rev_P = pad_zeros_add_axes(P0, offset, 3)
         _P = discarray(P_file, "w+", Float64, dims=(size(_rev_P, 1),
                                                         size(_rev_P, 2),
@@ -535,7 +543,7 @@ module Propagate
         # ∇²r = length(∇²_stencil) ÷ 2
         # offset = taper + ∇²r
 
-        # _v = pad_extremes(v, taper)
+        # _v = padextremes(v, taper)
         # _v_direct = deepcopy(_v)
         # _v_direct[:,taper+1:end-taper] .= repeat(v[1:1,:])
         # _signals = offset_signals(signals, offset)
