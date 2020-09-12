@@ -16,10 +16,10 @@ include("./parameters.jl")
 grid = FDMGrid(Δz, Δx, Δt, NZ, NX, NT)
 
 "defining signal" |> println
-(sz, sx) = sourceposition(array, NZ, NX)
+(sz, sx) = sourceposition(array, 1, NX)
 sourcesignature = discarray(sourcesignaturefile)
 
-shotssignals = [[signal1d(sz, sx, sourcesignature)], [signal1d(sz, sx+20, sourcesignature)]]
+shotssignals = [[signal1d(sz, sx-20, sourcesignature)], [signal1d(sz, sx, sourcesignature)], [signal1d(sz, sx+20, sourcesignature)]]
 # shotssignals = [[signal1d(sz, sx, sourcesignature)], ]
 
 "defining velocity model" |> println

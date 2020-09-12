@@ -3,7 +3,7 @@ include("./propagate_module.jl")
 
 using .Propagate
 
-ν = 1 # Hz
+ν = 10 # Hz
 
 signature = rickerwave(ν, Δt)
 

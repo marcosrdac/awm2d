@@ -175,8 +175,8 @@ module Propagate
     """
     function rickerwave(ν::Real, Δt::Real)
         @assert ν < 0.2 * 1.0/(2.0*Δt)
-        interval = 2 * (2.2/(ν*Δt)) ÷ 2
-        t = -interval÷2:interval÷2 .* (π*ν*Δt)
+        len = 2 * (2.2/(ν*Δt)) ÷ 2
+        t = (π*ν*Δt) .* (-len÷2:len÷2)
         ricker.(t)
     end
 
@@ -440,7 +440,6 @@ module Propagate
         end
     end
 
-    using PyPlot
 
     function propagateshots(grid, v, shotssignals, nrec=10, Δxrec=1,
                              P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
@@ -461,14 +460,7 @@ module Propagate
             savedseis = @view multiseis[:,savedslice]
             seis = propagate(grid, v, signals, P0, taper, attenuation;
                              seisfile=seisfile, stencilorder=stencilorder, direct_only=false)
-            print(size(seis))
-            @async begin
-                plt.imshow(seis)
-                plt.show()
-            end
             savedseis[:,:] .= seis[:,recpositions]
-            plt.imshow(savedseis)
-            plt.show()
         end
     end
 
