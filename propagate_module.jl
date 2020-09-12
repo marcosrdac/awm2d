@@ -85,28 +85,25 @@ module Propagate
     of the described array, _ndims, and then its dimensions. The body comes in
     sequence, and is a flattened version of that array.
     """
-    function discarray(io, mode::String="r", type::DataType=Float64, dims=(); 
-                       shared=false)
+    function discarray(io, mode::String="r", type::DataType=Float64, dims=();
+                       shared::Bool=false, pos::Integer=position(io))
+        pos !== position(io) && seek(io, pos)
         if occursin("w", mode)
-            _ndims = length(dims)
-            write(io, _ndims, dims...)
+            _dims = Tuple(Int64(d) for d in dims)
+            _ndims = Int64(length(_dims))
+            write(io, _ndims, _dims...)
         else
             _ndims = read(io, Int64)
-            dims = Tuple(read(io, Int64) for i in 1:_ndims)
+            _dims = Tuple(read(io, Int64) for i in 1:_ndims)
         end
-        A = Mmap.mmap(io, Array{type, _ndims}, dims; shared=shared)
-        close(io)
+        A = Mmap.mmap(io, Array{type, _ndims}, _dims)
         return(A)
     end
 
     function discarray(filename::String, mode::String="r",
                        type::DataType=Float64, dims=();
-                       shared=false,
-                       closeio=true)
-        if occursin("w", mode)
-            @assert dims !== ()
-            @assert eltype(dims) <: Int64
-        end
+                       shared::Bool=false, pos::Integer=0, closeio::Bool=true)
+        occursin("w", mode) && @assert dims !== ()
         io = open(filename, mode)
         A = discarray(io, mode, type, dims; shared=shared)
         closeio && close(io)
@@ -121,9 +118,8 @@ module Propagate
     write permissions at a file. This file contains A elements as content after
     discarray header.
     """
-    function todiscarray(filename::String, A::AbstractArray)
-        _A = discarray(filename, "w+", eltype(A), size(A))
-        _A .= A
+    function todiscarray(io, A::AbstractArray)
+        discarray(io, "w+", eltype(A), size(A)) .= A
     end
 
 
@@ -404,8 +400,6 @@ module Propagate
             savedseis[1,:] .= P[1,:,1]
         else
             savedP = discarray(Pfile, "w+", Float64, (nz, nx, nt))
-            print("saving")
-            savedP .= 1
         end
 
         attenuation_factors = get_attenuation_factors(_P, taper,
@@ -446,6 +440,7 @@ module Propagate
         end
     end
 
+    using PyPlot
 
     function propagateshots(grid, v, shotssignals, nrec=10, Δxrec=1,
                              P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
@@ -462,10 +457,18 @@ module Propagate
 
         for (S, signals) in enumerate(shotssignals)
             recpositions = receptorpositions(array, nrec, Δxrec, signals[1].x)
-            savedseis = @view multiseis[:,1+(S-1)*nrec:S*nrec]
+            savedslice = nrec*(S-1) .+ (1:nrec)
+            savedseis = @view multiseis[:,savedslice]
             seis = propagate(grid, v, signals, P0, taper, attenuation;
-                             seisfile, stencilorder, direct_only=false)
+                             seisfile=seisfile, stencilorder=stencilorder, direct_only=false)
+            print(size(seis))
+            @async begin
+                plt.imshow(seis)
+                plt.show()
+            end
             savedseis[:,:] .= seis[:,recpositions]
+            plt.imshow(savedseis)
+            plt.show()
         end
     end
 

@@ -1,14 +1,10 @@
 include("./propagate_module.jl")
 using .Propagate
-using Mmap
 
 io = open("test.bin", "w+")
+# io = "test.bin"
 
-a = discarray(io, "w+",  Float64, (5,3))
-a .= 1
-@show a
-close(io)
-
-io = open("test.bin", "r+")
-@show discarray(io, "r+")
-close(io)
+# @show discarray(io, "w+",  Float64, (5,3)) .= rand()
+@show todiscarray(io, rand(Float64, (3,3)))
+println()
+@show discarray(io, "r+"; pos=0)

@@ -24,14 +24,18 @@ signal = signal1d(sz, sx, sourcesignature)
 v = discarray(vfile)
 
 "defining initial pressure field" |> println
-# P0 = zero(v)
-P0 = collect(1:reduce(*,size(v)))
-P0 = reshape(P0, size(v))
+P0 = zero(v)
+# P0 = collect(1:reduce(*,size(v)))
+# P0 = reshape(P0, size(v))
 
 @println
 
 "source signal propagation" |> println
 # @btime propagate($grid, $v, $signal; Pfile=$Pfile, stencilorder=2)
-# @time propagate(grid, v, signal, P0; Pfile=Pfile, stencilorder=2)
 
-run(`python view.py`)
+# @time propagate(grid, v, signal, P0; Pfile=Pfile, stencilorder=16)
+# run(`python view.py $Pfile 500`)
+
+@time propagate(grid, v, signal, P0; seisfile=seisfile, stencilorder=8)
+run(`python view.py $seisfile 200`)
+
