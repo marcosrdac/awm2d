@@ -16,8 +16,8 @@ else:
     filename, nt = "/mnt/hdd/home/tmp/awp_data/P.bin", 200-1
     filename = "/mnt/hdd/home/tmp/awp_data/v.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
-    filename = "/mnt/hdd/home/tmp/awp_data/seis.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/source_signature.bin"
+    filename = "/mnt/hdd/home/tmp/awp_data/seis.bin"
 
 arr = discarray(filename, order='F')
 
