@@ -404,6 +404,8 @@ module Propagate
             savedseis[1,:] .= P[1,:,1]
         else
             savedP = discarray(Pfile, "w+", Float64, (nz, nx, nt))
+            print("saving")
+            savedP .= 1
         end
 
         attenuation_factors = get_attenuation_factors(_P, taper,
