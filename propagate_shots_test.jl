@@ -6,8 +6,10 @@ using BenchmarkTools
 macro println() :(println()) end
 
 "including \"propagate_module\", using Propagate module" |> println
-include("./propagate_module.jl")
-using .Propagate
+include("./discarrays.jl")
+include("./acoustics2d.jl")
+using .Discarrays
+using .Acoustics2D
 
 "including parameters file" |> println
 include("./parameters.jl")
