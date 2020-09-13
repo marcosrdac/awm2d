@@ -93,7 +93,7 @@ module Acoustics2D
     sourceposition(array::String, x) = sourceposition(array, 1, x)
 
     """
-        sourceposition(array::String, nz::Integer, nx::Integer)
+        receptorpositions(array::String, nz::Integer, nx::Integer)
     Get's valid receptor positions as an array of CartesianIndex elements
     (sz, sx), according to the seismic array gotten as parammeter. Possible 
     array values are:
@@ -104,7 +104,7 @@ module Acoustics2D
     TODO: receptors directly above source, if source is buried (if it makes
     any sense to implement that...)
     """
-    function receptorpositions(array::String, Δx, n, sx, nx=Inf)
+    function receptorpositions(array::String, sx, Δx, n, nx=Inf)
         if (array === "endon") | (array === "endon2right")
             span = [CartesianIndex(1, x)
                     for x in sx+Δx : Δx : sx+n*Δx
@@ -126,7 +126,6 @@ module Acoustics2D
             receptorpositions(array, n, Δx, sx)
         end
     end
-
 
 
     """
@@ -337,14 +336,17 @@ module Acoustics2D
             end
         end
     end
-
+    
+    function surfaceindexes(slice)
+        [CartesianIndex(1, x) for x in slice]
+    end
 
     function propagate(grid, v, signals,
                        P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
                        Pfile="",
                        seisfile="",
-                       stencilorder::Integer=2,
-                       recpositions=[CartesianIndex(1, x) for x in 1:grid.nx],
+                       stencilorder::Integer=8,
+                       recpositions=surfaceindexes(1:grid.nx),
                        direct_only::Bool=false,)
         ntcache = 3
         onlyseis = seisfile !== ""
@@ -418,43 +420,50 @@ module Acoustics2D
         end
     end
 
-
-    function propagateshots(grid, v, shotssignals, nrec=10, Δxrec=1,
-                             P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
-                             Pfile,
-                             seisfile,
-                             multiseisfile,
-                             array::String="split",
-                             stencilorder::Integer=2)
+    function propagateshots(grid, v, shotssignals,
+                            shotsrecpositions=[surfaceindexes(1:grid.nx)
+                                               for shot in shotssignals],
+                            P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
+                            seisfile,
+                            multiseisfile,
+                            stencilorder::Integer=8)
         @unpack nt = grid
-        nshots = length(shotssignals)
-        nwavelets = nshots * nrec
+
+        # nshots = length(shotssignals)
+        nwavelets = reduce(+, [length(recs) for recs in shotsrecpositions])
 
         multiseis = discarray(multiseisfile, "w+", Float64, (nt, nwavelets))
 
+        pos = 1
         for (S, signals) in enumerate(shotssignals)
-            recpositions = receptorpositions(array, nrec, Δxrec, signals[1].x)
-            savedslice = nrec*(S-1) .+ (1:nrec)
-            savedseis = @view multiseis[:,savedslice]
+            signals = shotssignals[S]
+            recpositions = shotsrecpositions[S]
+            
             seis = propagate(grid, v, signals, P0, taper, attenuation;
                              seisfile=seisfile, stencilorder=stencilorder,
                              recpositions=recpositions)
-            savedseis .= seis
+
+            nrecs = length(recpositions)
+            savedslice = pos:pos+nrecs-1
+
+            multiseis[:,savedslice] .= seis
+
+            pos += nrecs
         end
     end
 
 
-    #function migrate(grid, v, shot_signals, nrec=10, Δxrec=1,
-    #                 P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
-    #                 Pfile,
-    #                 directseisfile,
-    #                 revPfile,
-    #                 migratedfile,
-    #                 multiseisfile="",
-    #                 array::String="split",
-    #                 stencilorder::Integer=2,
-    #                 direct_only::Bool=false,)
-    #end
+    function migrate(grid, v, shotssignals,
+                     shotsrecpositions=[surfaceindexes(1:grid.nx)
+                                        for shot in shotssignals],
+                     P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
+                     Pfile,           # signal propagated
+                     directseisfile,  # direct signal propagated
+                     multiseisfile,   # seismograms
+                     revPfile,        # seismograms retro propagated
+                     migratedfile,    # final migration product file
+                     stencilorder::Integer=8)
+    end
 
 
 
