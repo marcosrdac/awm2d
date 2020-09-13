@@ -39,7 +39,7 @@ module Acoustics2D
     struct Signal1D{T}
         z::Integer
         x::Integer
-        t1::Integer
+        startT::Integer
         values::AbstractArray{T, 1}
     end
 
@@ -53,7 +53,7 @@ module Acoustics2D
     function offset_signal(signal::Signal1D, offset::Integer)
         _signal = Signal1D(signal.z+offset,
                            signal.x+offset,
-                           signal.t1,
+                           signal.startT,
                            signal.values)
     end
 
@@ -267,37 +267,37 @@ module Acoustics2D
 
 
     """
-        new_p(IP, Iv, cur_P, old_P, v, Δz, Δx, Δt)
+        new_p(IP, Iv, curP, oldP, v, Δz, Δx, Δt)
     Function that calculates the next P value at point IP in pressure field,
-    considering propagation velocity at that equal to point v[Iv]; cur_P and
-    old_P are, respectively, the current and old pressure field arrays.
+    considering propagation velocity at that equal to point v[Iv]; curP and
+    oldP are, respectively, the current and old pressure field arrays.
     """
-    function new_p(IP, Iv, cur_P, old_P, v, ∇²_stencil, Δz, Δx, Δt)
-        2cur_P[IP] - old_P[IP] + v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx)
+    function new_p(IP, Iv, curP, oldP, v, ∇²_stencil, Δz, Δx, Δt)
+        2curP[IP] - oldP[IP] + v[Iv]^2 * Δt * ∇²(curP, IP, ∇²_stencil, Δz, Δx)
     end
 
     """
-        new_p(IP, Iv, cur_P, old_P, v, Δz, Δx, Δt, attenuation_factor)
+        new_p(IP, Iv, curP, oldP, v, Δz, Δx, Δt, attenuation_factor)
     Function that calculates the next P value at point IP in pressure field,
-    considering propagation velocity at that point equal to v[Iv]. cur_P and
-    old_P are, respectively, the current and old pressure field arrays. The
-    result is multiplied by an attenuation_factor ∈ [0,1]. old_P is attenuated
+    considering propagation velocity at that point equal to v[Iv]. curP and
+    oldP are, respectively, the current and old pressure field arrays. The
+    result is multiplied by an attenuation_factor ∈ [0,1]. oldP is attenuated
     twice, as in the usual taper attenuation scheme.
     """
-    function new_p(IP, Iv, cur_P, old_P, v, ∇²_stencil, Δz, Δx, Δt, attenuation_factor)
+    function new_p(IP, Iv, curP, oldP, v, ∇²_stencil, Δz, Δx, Δt, attenuation_factor)
         attenuation_factor * begin
-            2cur_P[IP]  +  v[Iv]^2 * Δt * ∇²(cur_P, IP, ∇²_stencil, Δz, Δx) -
-            attenuation_factor * old_P[IP]
+            2curP[IP]  +  v[Iv]^2 * Δt * ∇²(curP, IP, ∇²_stencil, Δz, Δx) -
+            attenuation_factor * oldP[IP]
         end
     end
 
 
-    function update_P!(new_P!, cur_P, old_P, _v,
+    function update_P!(newP!, curP, oldP, _v,
                        ∇²_stencil, I∇²r, Δz, Δx, Δt,
                        attenuation_factors)
         @threads for Iv in CartesianIndices(_v)
             IP = Iv + I∇²r
-            new_P![IP] = new_p(IP, Iv, cur_P, old_P, _v,
+            newP![IP] = new_p(IP, Iv, curP, oldP, _v,
                                ∇²_stencil, Δz, Δx, Δt,
                                attenuation_factors[IP])
         end
@@ -328,11 +328,12 @@ module Acoustics2D
     end
 
 
-    function putsignals!(signals, t, cur_P!)
+    function putsignals!(signals, newT, curP!, startT=2)
         @inbounds @simd for signal in signals
-            t_signal = t - signal.t1  # for T in 2:nt
-            if (signal.t1 <= t) && (t_signal <= length(signal.values))
-                cur_P![signal.z, signal.x] = signal.values[t_signal]
+            curT = one(newT) + newT - startT
+            signalT = one(newT) + curT - signal.startT
+            if (signal.startT <= curT) & (signalT <= length(signal.values))
+                curP![signal.z, signal.x] = signal.values[signalT]
             end
         end
     end
@@ -385,27 +386,27 @@ module Acoustics2D
 
         I∇²r = CartesianIndex(∇²r, ∇²r)
         @inbounds for T in eltype(nt)(2):nt
-            old_t = mod1(T-2, ntcache)
-            cur_t = mod1(T-1, ntcache)
-            new_t = mod1(T,   ntcache)
-            old_P = @view _P[:,:,old_t]
-            cur_P = @view _P[:,:,cur_t]
-            new_P = @view _P[:,:,new_t]
+            oldt = mod1(T-2, ntcache)
+            curt = mod1(T-1, ntcache)
+            newt = mod1(T,   ntcache)
+            oldP = @view _P[:,:,oldt]
+            curP = @view _P[:,:,curt]
+            newP = @view _P[:,:,newt]
 
             # putting 1D signals
-            putsignals!(_signals, T, cur_P)
+            putsignals!(_signals, T, curP)
 
             # solve P equation
-            update_P!(new_P, cur_P, old_P, _v,
+            update_P!(newP, curP, oldP, _v,
                       ∇²_stencil, I∇²r, Δz, Δx, Δt,
                       attenuation_factors)
 
-            if (new_t === ntcache) | (T === nt)
-                ntslice = (1:new_t) .+ ntcache*floor(Int64, (T-1)/ntcache)
+            if (newt === ntcache) | (T === nt)
+                ntslice = (1:newt) .+ ntcache*floor(Int64, (T-1)/ntcache)
                 if onlyseis
-                    savedseis[ntslice,:] .= P[recpositions,1:new_t]'
+                    savedseis[ntslice,:] .= P[recpositions,1:newt]'
                 else
-                    savedP[:,:,ntslice] .= P[:,:,1:new_t]
+                    savedP[:,:,ntslice] .= P[:,:,1:newt]
                 end
             end
         end
@@ -472,7 +473,7 @@ module Acoustics2D
     wavelets. This array is useful in future in RTM steps.
     """
     function seis2signals(seis)
-        [Signal1D(1, x, 1, seis[end:-1:1, x]) for x in axes(seis, 2)]
+        [Signal1D(1, x, seis[end:-1:1, x]) for x in axes(seis, 2)]
     end
 
     """

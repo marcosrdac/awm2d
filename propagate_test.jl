@@ -30,10 +30,10 @@ P0 = zero(v)
 "source signal propagation" |> println
 # @btime propagate($grid, $v, $signal; Pfile=$Pfile, stencilorder=2)
 
-# @time propagate(grid, v, signal, P0; Pfile=Pfile, stencilorder=8)
-# run(`python view.py $Pfile 500`)
+@time propagate(grid, v, signal, P0; Pfile=Pfile, stencilorder=8)
+run(`python view.py $Pfile 500`)
 
 # @time propagate(grid, v, signal, P0; seisfile=seisfile, stencilorder=8)
 
-propagate(grid, v, signal, P0; seisfile=seisfile, stencilorder=8)
-run(`python view.py $seisfile 200`)
+# propagate(grid, v, signal, P0; seisfile=seisfile, stencilorder=8)
+# run(`python view.py $seisfile 200`)
