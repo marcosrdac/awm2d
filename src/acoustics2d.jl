@@ -2,14 +2,14 @@ module Acoustics2D
     using Base.Threads
     using Parameters
     using StaticArrays
-    include("./discarrays.jl")
+    include("discarrays.jl")
     using .Discarrays
 
     # structures
     export FDMGrid, Signal1D
     # functions
     export gen3layv
-    export rickerwave, signal1d, sourceposition, shotsposition
+    export rickerwave, sourceposition, receptorpositions, shotsposition
     export P2seis, seis2signals, imagecondition
     export propagate, propagateshots
 
@@ -43,12 +43,7 @@ module Acoustics2D
         values::AbstractArray{T, 1}
     end
 
-
-    """
-        signal1d(z, x, values, t1=1)
-    Function to conveniently create Signal1D structs.
-    """
-    signal1d(z, x, values, t1=1) = Signal1D(z, x, t1, values)
+    Signal1D(z, x, values) = Signal1D(z, x, 1, values)
 
 
     """
@@ -79,27 +74,55 @@ module Acoustics2D
     """
         sourceposition(array::String, nz::Integer, nx::Integer)
     Get's source position as a tuple of elements (sz, sx), according to the
-    seismic array gotten as parammeter. Possible array values are:
-        - "endon",
-        - "split",
+    seismic array gotten as parammeter. This function is useful for one-shot
+    propagation products. Possible array values are:
+        - "endon" or "endon2right";
+        - "endon2left";
+        - "split"; and
         - "center".
     """
     function sourceposition(array::String, z, x)
-        array==="endon"  && (pos=(z[1],          x[1]))
-        array==="split"  && (pos=(z[1],          reduce(+,x)÷2))
-        array==="center" && (pos=(reduce(+,x)÷2, reduce(+,x)÷2))
+        array==="endon"       && (pos=(z[1],          x[1]))
+        array==="endon2right" && (pos=(z[1],          x[1]))
+        array==="endon2left"  && (pos=(z[1],          x[end]))
+        array==="split"       && (pos=(z[1],          reduce(+,x)÷2))
+        array==="center"      && (pos=(reduce(+,x)÷2, reduce(+,x)÷2))
         return pos
     end
 
     sourceposition(array::String, x) = sourceposition(array, 1, x)
 
-    function receptorpositions(array::String, n, Δx, sx)
-        if array==="endon"
-            span = collect(sx+Δx : Δx : sx+n*Δx)
-        elseif array==="split"
-            span = [collect(sx-(n÷2)*Δx : Δx : sx-Δx)
-                    collect(sx+Δx : Δx : sx+(n-n÷2)*Δx)]
-        elseif array==="center"
+    """
+        sourceposition(array::String, nz::Integer, nx::Integer)
+    Get's valid receptor positions as an array of CartesianIndex elements
+    (sz, sx), according to the seismic array gotten as parammeter. Possible 
+    array values are:
+        - "endon" or "endon2right";
+        - "endon2left";
+        - "split"; and
+        - "center".
+    TODO: receptors directly above source, if source is buried (if it makes
+    any sense to implement that...)
+    """
+    function receptorpositions(array::String, Δx, n, sx, nx=Inf)
+        if (array === "endon") | (array === "endon2right")
+            span = [CartesianIndex(1, x)
+                    for x in sx+Δx : Δx : sx+n*Δx
+                    if 1 <= x <= nx]
+        elseif array === "endon2left"
+            span = [CartesianIndex(1, x)
+                    for x in sx-n*Δx : Δx : sx-Δx
+                    if 1 <= x <= nx]
+        elseif array === "split"
+            span = [
+                    [CartesianIndex(1, x)
+                     for x in sx-(n÷2)*Δx : Δx : sx-Δx
+                     if 1 <= x <= nx]
+                    [CartesianIndex(1, x)
+                     for x in sx+Δx : Δx : sx+(n-n÷2)*Δx
+                     if 1 <= x <= nx]
+                   ]
+        elseif array === "center"
             receptorpositions(array, n, Δx, sx)
         end
     end
@@ -320,8 +343,8 @@ module Acoustics2D
                        Pfile="",
                        seisfile="",
                        stencilorder::Integer=2,
+                       recpositions=[CartesianIndex(1, x) for x in 1:grid.nx],
                        direct_only::Bool=false,)
-        # TODO: add keyword to pre-load Pfile as mmap
         ntcache = 3
         onlyseis = seisfile !== ""
 
@@ -349,8 +372,9 @@ module Acoustics2D
         end
 
         if onlyseis
-            savedseis = discarray(seisfile, "w+", Float64, (nt, nx))
-            savedseis[1,:] .= P[1,:,1]
+            nrec = length(recpositions)
+            savedseis = discarray(seisfile, "w+", Float64, (nt, nrec))
+            savedseis[1,:] .= P[recpositions, 1]
         else
             savedP = discarray(Pfile, "w+", Float64, (nz, nx, nt))
         end
@@ -379,7 +403,7 @@ module Acoustics2D
             if (new_t === ntcache) | (T === nt)
                 ntslice = (1:new_t) .+ ntcache*floor(Int64, (T-1)/ntcache)
                 if onlyseis
-                    savedseis[ntslice,:] .= P[1,:,1:new_t]'
+                    savedseis[ntslice,:] .= P[recpositions,1:new_t]'
                 else
                     savedP[:,:,ntslice] .= P[:,:,1:new_t]
                 end
@@ -412,8 +436,9 @@ module Acoustics2D
             savedslice = nrec*(S-1) .+ (1:nrec)
             savedseis = @view multiseis[:,savedslice]
             seis = propagate(grid, v, signals, P0, taper, attenuation;
-                             seisfile=seisfile, stencilorder=stencilorder, direct_only=false)
-            savedseis[:,:] .= seis[:,recpositions]
+                             seisfile=seisfile, stencilorder=stencilorder,
+                             recpositions=recpositions)
+            savedseis .= seis
         end
     end
 

@@ -1,5 +1,5 @@
 Pfile = "/mnt/hdd/home/tmp/awp_data/P.bin"
-# Pfile = "/home/marcosrdac/P.bin"
+# Pfile = "/home/marcosrdac/P.bin" # 5 s faster w/ @time
 shotsfile = "/mnt/hdd/home/tmp/awp_data/shots.bin"
 vfile = "/mnt/hdd/home/tmp/awp_data/v.bin"
 sourcesignaturefile = "/mnt/hdd/home/tmp/awp_data/source_signature.bin"

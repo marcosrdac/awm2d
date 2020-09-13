@@ -1,7 +1,7 @@
 from os.path import basename
 from sys import argv
 import matplotlib.pyplot as plt
-from discarrays import discarray
+from src.discarrays import discarray
 
 # defining parameters
 nt = 1  # default
