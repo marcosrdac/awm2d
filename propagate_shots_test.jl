@@ -14,10 +14,10 @@ v = discarray(vfile)
 nz, nx = size(v)
 
 "defining grid" |> println
-grid = FDMGrid(Δz, Δx, Δt, NZ, NX, NT)
+grid = FDMGrid(Δz, Δx, Δt, nz, nx, nt)
 
 "defining sources" |> println
-(sz, sx) = sourceposition(array, 1, NX)
+(sz, sx) = sourceposition(array, 1, nx)
 sourcesignature = discarray(sourcesignaturefile)
 
 shotssignals = [[Signal1D(sz, sx-20, sourcesignature)],

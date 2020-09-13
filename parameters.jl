@@ -13,13 +13,11 @@ multiseisfile = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
 Δz = 1.0 # km
 Δx = 1.0 # km
 Δt = 0.001 # s
-NX = 321
-NZ = 321
-NT = 4500
-# NT = 3000
-# NX = 50
-# NZ = 50
-# NT = 500
+nt = 4500
+# nt = 3000
+# nx = 50
+# nz = 50
+# nt = 500
 
 # stencil order
 stencil_order = 8

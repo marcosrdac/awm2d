@@ -16,7 +16,8 @@
 - [X] different laplacian orders
 - [X] Signal1d/Signal2d -> Vector{Signal1d}(n_sources)
 - [X] code cleanup
-- [ ] sourceposition --> local offsets (source position, n_recept., spacing, array)
-- [ ] generate local offset --> one shot
-- [ ] generate local offset --> various shots
+- [ ] receptors position --> local offsets (source position, n_recept., spacing, array)
+- [ ] generate synthetic wavelets --> one shot
+- [ ] generate synthetic wavelets --> various shots
+- [ ] make complete migration routine
 - [.] madagascar for julia: sadly, it yet doesn't exist

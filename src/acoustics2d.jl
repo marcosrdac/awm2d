@@ -2,13 +2,14 @@ module Acoustics2D
     using Base.Threads
     using Parameters
     using StaticArrays
+    using Images
     include("discarrays.jl")
     using .Discarrays
 
     # structures
     export FDMGrid, Signal1D
     # functions
-    export gen3layv
+    export gen3layv, img2arr
     export rickerwave, sourceposition, receptorpositions, shotsposition
     export P2seis, seis2signals, imagecondition
     export propagate, propagateshots
@@ -221,6 +222,33 @@ module Acoustics2D
     end
 
 
+    luma(rgb) = 0.2126rgb[1] + 0.7152rgb[2] + 0.0722rgb[3]
+
+    function toluma(img)
+        L = Array{Float64}(undef, (size(img,1), size(img,2)))
+        for I in CartesianIndices(L)
+            L[I] = luma(img[I,:])
+        end
+        return L
+    end
+
+    function zerotoone(A, type=Float64)
+        _A = similar(A, Float64)
+        _A .= A .- minimum(A)
+        _A ./= maximum(_A)
+    end
+
+    function putbetween(A, vmin, vmax)
+        (vmax-vmin) .* zerotoone(A) .+ vmin
+    end
+
+    function img2arr(filename, vmin=0, vmax=1)
+        img = load(filename)
+        arr = permutedims(rawview(channelview(img)), (2,3,1))
+        arr = putbetween(toluma(arr), vmin, vmax)
+    end
+
+
     function central_difference_coefs(degree::Integer, order::Integer)
         @assert order % 2 === 0
         p = Int(floor((order+1)/2))
@@ -316,10 +344,9 @@ module Acoustics2D
         factors = ones(Float64, (size(A,1), size(A,2)))
         for i in 1:taper+offset
             depth = taper-i+1
-            factors[i, i:end+1-i] .=
-            factors[i:end+1-i, i] .=
-            factors[end-i+1, i:end-i+1] .=
-            factors[i:end-i+1, end-i+1] .=
+            factors[i, i:end+1-i] .= factors[end-i+1, i:end-i+1] .=
+                get_attenuation_factor(depth, attenuation)
+            factors[i:end+1-i, i] .= factors[i:end-i+1, end-i+1] .=
                 get_attenuation_factor(depth, attenuation)
         end
         factors

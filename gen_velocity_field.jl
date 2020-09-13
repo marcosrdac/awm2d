@@ -1,15 +1,31 @@
-include("./parameters.jl")
-include("./propagate_module.jl")
+include("src/acoustics2d.jl")
+include("src/discarrays.jl")
+include("parameters.jl")
+using .Acoustics2D
+using .Discarrays
 
-using .Propagate
 
-# three layered model parameters
-H1 = (1*NZ)÷3
-H2 = (1*NZ)÷3
-V1 = 3. # km/s
-V2 = 5. # km/s
-V3 = 9. # km/s
+V = [3. 5. 9.]'
 
-v = gen3layv(NZ, NX, H1, H2, V1, V2, V3)
+mode = "pic"
+
+
+if mode === "pic"
+    inputfilename = "/home/marcosrdac/me_test.png"
+    Vmin, Vmax = minimum(V), maximum(V)
+    v = img2arr(inputfilename, Vmin, Vmax)
+elseif mode === "3lay"
+    NX, NZ = 321, 321
+    H1 = H2 = NZ÷3
+    V1, V2, V3 = V[1:3]
+    v = gen3layv(NZ, NX, H1, H2, V1, V2, V3)
+end
+
 
 todiscarray(vfile, v)
+
+
+using PyPlot
+plt.imshow(v)
+plt.colorbar()
+plt.show()
