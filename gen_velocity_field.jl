@@ -5,7 +5,7 @@ using .Acoustics2D
 using .Discarrays
 
 
-V = [3. 5. 9.]'
+V = [3. 5. 9.]' # km/s
 
 mode = "pic"
 
@@ -22,10 +22,10 @@ elseif mode === "3lay"
 end
 
 
+# using PyPlot
+# plt.imshow(v)
+# plt.colorbar()
+# plt.show()
+
+
 todiscarray(vfile, v)
-
-
-using PyPlot
-plt.imshow(v)
-plt.colorbar()
-plt.show()

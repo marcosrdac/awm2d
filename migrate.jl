@@ -1,49 +1,35 @@
 #!/usr/bin/env julia
-using Base.Threads
 
-"including \"propagate_module\", using Propagate module" |> println
-include("./discarrays.jl")
-include("./acoustics2d.jl")
+"including module files" |> println
+include("src/discarrays.jl")
+include("src/acoustics2d.jl")
 using .Discarrays
 using .Acoustics2D
 
 "including parameters file" |> println
 include("./parameters.jl")
 
-"defining grid" |> println
-grid = FDMGrid(Δz, Δx, Δt, NZ, NX, NT)
-
 "defining velocity model" |> println
 v = discarray(vfile)
+nz, nx = size(v)
 
-"defining initial pressure field" |> println
-P0 = zero(v)
+"defining grid" |> println
+grid = FDMGrid(Δz, Δx, Δt, nz, nx, nt)
 
 "defining signal" |> println
 sourcesignature = discarray(sourcesignaturefile)
-(sz, sx) = sourceposition(array, NZ, NX)
-signal = signal1d(sz, sx, sourcesignature)
-
-println()
+(sz, sx) = sourceposition(array, nz, nx)
+signal = Signal1D(sz, sx, sourcesignature)
 
 "source signal propagation" |> println
-@time propagatesave(grid, P0, v, signal;
-                     filename=Pfile, stencilorder=stencilorder)
-
-
-println()
-
+@time propagate(grid, v, signal; filename=Pfile)
 
 "source signal direct wave propagation" |> println
-@time propagatesaveseis(grid, P0, v, signal;
-                          filename=directseisfile, stencilorder=stencilorder,
-                          directonly=true)
-
-
-println()
-
+@time propagate(grid, v, signal; filename=directseisfile,
+                        directonly=true)
 
 "reverse wave propagation" |> println
+using Base.Threads
 begin
     seis = P2seis(discarray(Pfile))
     directseis = discarray(directseisfile)
@@ -55,11 +41,7 @@ begin
 
     seissignals = seis2signals(seis)
 end
-@time propagatesave(grid, P0, v, seissignals; filename=reversedPfile, stencilorder=stencilorder)
-
-
-println()
-
+@time propagate(grid, v, seissignals; filename=reversedPfile)
 
 "applying image condition" |> println
 @time imagecondition(Pfile, reversedPfile, migratedfile)

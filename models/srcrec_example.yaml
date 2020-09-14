@@ -1,0 +1,28 @@
+shots:
+
+  - shot:
+    source:
+      x: 1
+    receptors:
+      dx: 2
+      nleft: 20
+      nright: 20
+
+  - shot:
+    sources:
+      - source:
+        position:
+          z: 1
+          x: 2
+        signal: default_ricker
+    receptors:
+      - receptor:
+        positions:
+
+  - shot:
+    source:
+      tx: 1.5 # km
+    receptors:
+      tdx: 2.0 # km
+      nleft: 20
+      nright: 20

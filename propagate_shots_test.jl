@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 
-"including \"propagate_module\", using Propagate module" |> println
+"including module files" |> println
 include("src/discarrays.jl")
 include("src/acoustics2d.jl")
 using .Discarrays
