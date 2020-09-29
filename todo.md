@@ -8,7 +8,7 @@
 - [X] make reverse propagation
 - [X] image condition
 - [X] subtract direct wave from seismogram before reverse propagation
-- [X] create a module wave equation solving and related stuff
+- [X] create a wave equation module for solving and related stuff
 - [X] create specific code for 1D/2D signal propagation w/ and w/o saving
 - [X] read velocity field from binary file
 - [X] read signal from binary file
@@ -16,8 +16,8 @@
 - [X] different laplacian orders
 - [X] Signal1d/Signal2d -> Vector{Signal1d}(n_sources)
 - [X] code cleanup
-- [ ] receptors position --> local offsets (source position, n_recept., spacing, array)
-- [ ] generate synthetic wavelets --> one shot
-- [ ] generate synthetic wavelets --> various shots
-- [ ] make complete migration routine
+- [X] receptors position --> local offsets (source position, n_recept., spacing, array)
+- [X] generate synthetic wavelets --> one shot
+- [X] generate synthetic wavelets --> various shots
+- [X] make complete migration routine
 - [.] madagascar for julia: sadly, it yet doesn't exist

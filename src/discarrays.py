@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def discarray(filename, mode='r', dtype=float, shape=None, order='C'):
     file_mode = f'{mode[0]}b{mode[1:]}'
     if not isinstance(shape, tuple):
@@ -12,6 +13,6 @@ def discarray(filename, mode='r', dtype=float, shape=None, order='C'):
             ndims = np.fromfile(io, dtype=np.int64, count=1)[0]
             shape = tuple(np.fromfile(io, dtype=np.int64, count=ndims))
         offset = io.tell()
-        arr = np.memmap(io, dtype=dtype, mode=mode,
-                        offset=offset, shape=shape, order=order)
+        arr = np.memmap(io, mode=mode, dtype=dtype, shape=shape, 
+                        offset=offset, order=order)
     return(arr)

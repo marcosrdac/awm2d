@@ -8,6 +8,7 @@ using .Acoustics2D
 "including parameters file" |> println
 include("parameters.jl")
 
+
 "defining velocity model" |> println
 v = discarray(vfile)
 nz, nx = size(v)
@@ -40,10 +41,14 @@ shotsrecpositions = [receptorpositions("split", signals[1].x,  ceil(Int, 5/321*n
 # using BenchmarkTools
 # @btime propagate($grid, $v, $signal; filename=$Pfile, stencilorder=2)
 
-@time propagateshots(grid, v;
-                     seisfile=seisfile,
-                     multiseisfile=multiseisfile,
-                     shotssignals=shotssignals,
-                     shotsrecpositions=shotsrecpositions,)
+@time migrate(
+        grid, v;
+        shotssignals=shotssignals,
+        Pfile=Pfile,
+        multiseisfile=multiseisfile,
+        reversedPfile=reversedPfile,
+        migratedfile=migratedfile,
+        shotsrecpositions=shotsrecpositions,
+)
 
-run(`python view.py $multiseisfile`)
+run(`python view.py $migratedfile`)

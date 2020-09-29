@@ -5,7 +5,6 @@ include("src/discarrays.jl")
 include("src/acoustics2d.jl")
 using .Discarrays
 using .Acoustics2D
-
 "including parameters file" |> println
 include("parameters.jl")
 
@@ -17,8 +16,8 @@ nz, nx = size(v)
 grid = FDMGrid(Δz, Δx, Δt, nz, nx, nt)
 
 "defining signal" |> println
-# (sz, sx) = sourceposition(array, nx)
-(sz, sx) = (250, 178)
+(sz, sx) = sourceposition("split", (1,nx))
+# (sz, sx) = (250, 178)
 sourcesignature = discarray(sourcesignaturefile)
 signal = Signal1D(sz, sx, sourcesignature)
 
@@ -30,8 +29,14 @@ P0 = zero(v)
 "source signal propagation" |> println
 # @btime propagate($grid, $v, $signal; Pfile=$Pfile, stencilorder=2)
 
-@time propagate(grid, v, signal, P0; Pfile=Pfile, stencilorder=8)
-run(`python view.py $Pfile 500`)
+# snaps
+@time P = propagate(grid, v, signal, P0; Pfile=Pfile, stencilorder=8)
 
-@time propagate(grid, v, signal, P0; seisfile=seisfile, stencilorder=8)
-run(`python view.py $seisfile 200`)
+# and seismogram
+@time todiscarray(seisfile, P2seis(P))
+run(`python view.py $seisfile 500`)
+
+
+# only seis
+# @time propagate(grid, v, signal, P0; seisfile=seisfile, stencilorder=8)
+# run(`python view.py $seisfile 200`)

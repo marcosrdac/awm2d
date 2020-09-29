@@ -11,7 +11,7 @@ module Discarrays
     sequence, and is a flattened version of that array.
     """
     function discarray(io, mode::String="r", type::DataType=Float64, dims=();
-                    shared::Bool=false, pos::Integer=position(io))
+                       shared::Bool=false, pos::Integer=position(io))
         pos !== position(io) && seek(io, pos)
         if occursin("w", mode)
             _dims = Tuple(Int64(d) for d in dims)
@@ -25,9 +25,15 @@ module Discarrays
         return(A)
     end
 
+    function discarray(array::AbstractArray,
+                       mode::String="r", type::DataType=Float64, dims=();
+                       shared::Bool=false, pos::Integer=position(io))
+        return(array)
+    end
+
     function discarray(filename::String, mode::String="r",
-                    type::DataType=Float64, dims=();
-                    shared::Bool=false, pos::Integer=0, closeio::Bool=true)
+                       type::DataType=Float64, dims=();
+                       shared::Bool=false, pos::Integer=0, closeio::Bool=true)
         occursin("w", mode) && @assert dims !== ()
         io = open(filename, mode)
         A = discarray(io, mode, type, dims; shared=shared)

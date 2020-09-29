@@ -12,7 +12,8 @@ module Acoustics2D
     export gen3layv, img2arr
     export rickerwave, sourceposition, receptorpositions, shotsposition
     export P2seis, seis2signals, imagecondition
-    export propagate, propagateshots
+    export propagate, propagateshots, migrate
+    export seisgain
 
 
     # standard constants
@@ -96,7 +97,7 @@ module Acoustics2D
     """
         receptorpositions(array::String, nz::Integer, nx::Integer)
     Get's valid receptor positions as an array of CartesianIndex elements
-    (sz, sx), according to the seismic array gotten as parammeter. Possible 
+    (sz, sx), according to the seismic array gotten as parammeter. Possible
     array values are:
         - "endon" or "endon2right";
         - "endon2left";
@@ -363,7 +364,7 @@ module Acoustics2D
             end
         end
     end
-    
+
     function surfaceindexes(slice)
         [CartesianIndex(1, x) for x in slice]
     end
@@ -447,13 +448,14 @@ module Acoustics2D
         end
     end
 
-    function propagateshots(grid, v, shotssignals,
-                            shotsrecpositions=[surfaceindexes(1:grid.nx)
-                                               for shot in shotssignals],
-                            P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
+    function propagateshots(grid, v, P0=zero(v);
                             seisfile,
                             multiseisfile,
-                            stencilorder::Integer=8)
+                            shotssignals,
+                            shotsrecpositions=[surfaceindexes(1:grid.nx)
+                                               for shot in shotssignals],
+                            stencilorder::Integer=8,
+                            taper=TAPER, attenuation=ATTENUATION)
         @unpack nt = grid
 
         # nshots = length(shotssignals)
@@ -465,7 +467,7 @@ module Acoustics2D
         for (S, signals) in enumerate(shotssignals)
             signals = shotssignals[S]
             recpositions = shotsrecpositions[S]
-            
+
             seis = propagate(grid, v, signals, P0, taper, attenuation;
                              seisfile=seisfile, stencilorder=stencilorder,
                              recpositions=recpositions)
@@ -479,17 +481,52 @@ module Acoustics2D
         end
     end
 
-
-    function migrate(grid, v, shotssignals,
+    function migrate(grid, v, P0=zero(v);
+                     multiseisfile,   # original data
+                     shotssignals,    # each shot data
+                     migratedfile,    # output migration product file
+                     Pfile,           # propagation file
+                     reversedPfile,   # seismograms retro propagated
                      shotsrecpositions=[surfaceindexes(1:grid.nx)
                                         for shot in shotssignals],
-                     P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
-                     Pfile,           # signal propagated
-                     directseisfile,  # direct signal propagated
-                     multiseisfile,   # seismograms
-                     revPfile,        # seismograms retro propagated
-                     migratedfile,    # final migration product file
-                     stencilorder::Integer=8)
+                     stencilorder::Integer=8,
+                     taper=TAPER, attenuation=ATTENUATION)
+
+        multiseis = discarray(multiseisfile)
+        migrated = discarray(migratedfile, "w+", Float64, size(v))
+
+        pos = 1
+        for (S, signals) in enumerate(shotssignals)
+
+                # debug
+                S |> println
+
+            # propagating signals
+            P = propagate(grid, v, signals, P0; Pfile=Pfile)
+
+                # debug
+                "propagated" |> println
+
+            # reverse-propagating seimograms
+            recpositions = shotsrecpositions[S]
+            nrecs = length(recpositions)
+            seisslice = pos:pos+nrecs-1
+            seis = @view multiseis[:,seisslice]
+            seissignals = seis2signals(seis, recpositions)
+            revP = propagate(grid, v, seissignals; Pfile=reversedPfile)
+
+                # debug
+                "rev propagated" |> println
+
+            # applying image condition
+            # imagecondition!(P, revP, migrated)
+            cachedimagecondition!(P, revP, migrated; ntcache=300)
+
+                # debug
+                "image condition done" |> println
+
+            pos += nrecs
+        end
     end
 
 
@@ -499,8 +536,8 @@ module Acoustics2D
     Slices a seismogram out of a pressure field, P{Any, 3}(nz, nx, nt),
     and returns a copy of it.
     """
-    function P2seis(P)
-        seis = copy(P[1,:,:]')
+    function P2seis(P, recpositions=surfaceindexes(axes(P,2)))
+        seis = copy(P[recpositions,:]')
     end
 
     """
@@ -508,23 +545,51 @@ module Acoustics2D
     Transforms a seismogram array into an array of Signal1D's with reversed
     wavelets. This array is useful in future in RTM steps.
     """
-    function seis2signals(seis)
-        [Signal1D(1, x, seis[end:-1:1, x]) for x in axes(seis, 2)]
+    function seis2signals(seis, recpositions=surfaceindexes(axes(seis,2)))
+        [Signal1D(pos[1], pos[2], seis[end:-1:1, x])
+         for (x, pos) in enumerate(recpositions)]
     end
 
     """
-        imagecondition(Pfile, reversed_Pfile, migrated_file)
     Perform image condition between to filenames pointing to binary files
     formated as discarray does.
     """
-    function imagecondition(Pfile, reversed_Pfile, migrated_file)
-        P = discarray(Pfile)
-        reversed_P = discarray(reversed_Pfile)
-        (nz, nx, nt) = size(P)
-        migrated = discarray(migrated_file, "w+", Float64, (nz, nx))
-        migrated .= 0.
-        for t in 1:nt
-            @views migrated[:,:] .+= P[:,:,t] .* reversed_P[:,:,nt-t+1]
+    function imagecondition!(P, revP, image!)
+        _P = @view revP[:,:,end:-1:1]
+        for T in axes(P,3)
+            for I in CartesianIndices(axes(P)[1:2])
+                Threads.@spawn image![I] += P[I,T] * _P[I,T]
+            end
+        end
+        return image!
+    end
+
+    function imagecondition(P, revP)
+        image=zeros(eltype(P), size(P)[1:2])
+        imagecondition!(P, revP, image)
+    end
+
+    function cachedimagecondition!(P, revP, image!; ntcache)
+        nt = size(P, 3)
+        Tslices    = [T+ntcache<nt ? (T:T+ntcache-1) : (T:nt) 
+                      for T in 1:ntcache:nt]
+        revTslices = [T-ntcache>1 ? (T-ntcache:T-1) : (1:T)
+                      for T in nt:-ntcache:1]
+        for S in 1:length(Tslices)
+            (Tslice, revTslice) = (Tslices[S], revTslices[S])
+
+                # debug
+                "copying arrays to memory..." |> println
+
+            # try @view
+            Pcopy    = deepcopy(P[:,:,Tslice])
+            revPcopy = deepcopy(revP[:,:,revTslice])
+            
+                # debug
+                @show S/length(Tslices)
+
+            imagecondition!(Pcopy, revPcopy, image!)
         end
     end
+
 end

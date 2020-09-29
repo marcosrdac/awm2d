@@ -9,9 +9,10 @@ from src.discarrays import discarray
 
 def animate_snaps(in_fn, out_fn, order='C',
                   norm="frameabsmax",
-                  timestep=30, interval=60):
+                  timestep=30, interval=60,
+                  cmap='seismic'):
     '''
-    Saves a [ny,nx,nt] array time snaps as a gif.
+    Saves a [nz,nx,nt] array time snaps as a gif.
     Norm can be:
         - "fullminmax";
         - "frameminmax";
@@ -26,7 +27,7 @@ def animate_snaps(in_fn, out_fn, order='C',
     nz, nx, nt = arr.shape
     frame = arr[:, :, 0]
 
-    im = ax.imshow(frame, aspect='auto')
+    im = ax.imshow(frame, aspect='auto', cmap=cmap)
 
     vmin = vmax = None
     if norm is not None:
@@ -63,9 +64,13 @@ def animate_snaps(in_fn, out_fn, order='C',
 if __name__ == '__main__':
     folder = "/mnt/hdd/home/tmp/awp_data"
     Pfile = join(folder, "P.bin")
+    revPfile = join(folder, "reversed_P.bin")
 
-    animate_snaps((f := Pfile),
-                  f"animations/{splitext(basename(f))[0]}.gif", order='F')
+    outfolder = "animations"
 
-    # animate_snaps(join(folder, "reversed_P.bin"),
-    #              "animations/reversed_P.gif", order='F')
+    # files = [Pfile, revPfile]
+    files = [Pfile]
+
+    for f in files:
+        outf = join(outfolder, f"{splitext(basename(f))[0]}.gif")
+        animate_snaps(f, outf, order='F')
