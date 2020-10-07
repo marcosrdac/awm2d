@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+
+
 from os.path import basename
 from sys import argv
 import numpy as np
@@ -15,13 +18,13 @@ else:
     filename = "/mnt/hdd/home/tmp/awp_data/model.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/direct_seis.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/source_signature.bin"
-    filename, nt = "/mnt/hdd/home/tmp/awp_data/P.bin", 200-1
-    filename = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
-    filename = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/3lay_migrated.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/seis.bin"
-    filename = "/mnt/hdd/home/tmp/awp_data/v.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/migrated_marmousi_5.bin"
+    filename, nt = "/mnt/hdd/home/tmp/awp_data/P.bin", 300-1
+    filename = "/mnt/hdd/home/tmp/awp_data/v.bin"
+    filename = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
+    filename = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
 
 
 arr = discarray(filename, order='F')
@@ -43,8 +46,16 @@ elif arr.ndim == 2:
     # plt.imshow(seisgain(arr, a=2.), aspect='auto', cmap='seismic')
     # plt.imshow(arr, aspect='auto')
 
+    # _arr = seisgain(arr, a=1.8, b=-1.)
+    _arr = seisgain(arr, a=2., b=0.)
     # _arr = arr
-    _arr = seisgain(arr, a=1.8, b=0.)
+
+    # plt.subplot(211)
+    # plt.imshow(discarray("/mnt/hdd/home/tmp/awp_data/v.bin", order='F'), cmap='Greys_r')
+    # plt.colorbar()
+    # plt.subplot(212)
+    # plt.imshow(_arr, cmap='Greys_r')
+
     plt.imshow(_arr, aspect='auto', cmap='Greys_r')
     plt.colorbar()
 elif arr.ndim == 3:
@@ -53,5 +64,6 @@ elif arr.ndim == 3:
 
 
 plt.title(basename(filename))
+plt.tight_layout()
 plt.savefig("savedfigs/saved.jpg")
 plt.show()

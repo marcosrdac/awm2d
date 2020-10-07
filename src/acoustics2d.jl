@@ -2,7 +2,6 @@ module Acoustics2D
     using Base.Threads
     using Parameters
     using StaticArrays
-    using Images
     include("discarrays.jl")
     using .Discarrays
 
@@ -12,7 +11,9 @@ module Acoustics2D
     export gen3layv, img2arr
     export rickerwave, sourceposition, receptorpositions, shotsposition
     export P2seis, seis2signals, imagecondition
+    export zerotoone, putbetween
     export propagate, propagateshots, migrate
+    export surfaceindices, edgeindices
     export seisgain
 
 
@@ -222,17 +223,6 @@ module Acoustics2D
         return v
     end
 
-
-    luma(rgb) = 0.2126rgb[1] + 0.7152rgb[2] + 0.0722rgb[3]
-
-    function toluma(img)
-        L = Array{Float64}(undef, (size(img,1), size(img,2)))
-        for I in CartesianIndices(L)
-            L[I] = luma(img[I,:])
-        end
-        return L
-    end
-
     function zerotoone(A, type=Float64)
         _A = similar(A, Float64)
         _A .= A .- minimum(A)
@@ -242,13 +232,6 @@ module Acoustics2D
     function putbetween(A, vmin, vmax)
         (vmax-vmin) .* zerotoone(A) .+ vmin
     end
-
-    function img2arr(filename, vmin=0, vmax=1)
-        img = load(filename)
-        arr = permutedims(rawview(channelview(img)), (2,3,1))
-        arr = putbetween(toluma(arr), vmin, vmax)
-    end
-
 
     function central_difference_coefs(degree::Integer, order::Integer)
         @assert order % 2 === 0
@@ -365,8 +348,13 @@ module Acoustics2D
         end
     end
 
-    function surfaceindexes(slice)
+    function surfaceindices(slice)
         [CartesianIndex(1, x) for x in slice]
+    end
+
+    function edgeindices(nz, nx)
+        [[CartesianIndex(z, x) for z in [1,nz] for x in 1:nx]
+         [CartesianIndex(z, x) for z in 1:nz for x in [1,nx]]]
     end
 
     function propagate(grid, v, signals,
@@ -374,7 +362,7 @@ module Acoustics2D
                        Pfile="",
                        seisfile="",
                        stencilorder::Integer=8,
-                       recpositions=surfaceindexes(1:grid.nx),
+                       recpositions=surfaceindices(1:grid.nx),
                        direct_only::Bool=false,)
         ntcache = 3
         onlyseis = seisfile !== ""
@@ -448,11 +436,84 @@ module Acoustics2D
         end
     end
 
+    # using PyPlot
+    function revpropagateimcond(grid, v, signals,
+                                P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
+                                Pfile="",
+                                image=zero(v),
+                                stencilorder::Integer=8,
+                                recpositions=surfaceindices(1:grid.nx),
+                                direct_only::Bool=false,)
+
+        @unpack Δz, Δx, Δt, nz, nx = grid
+        P = discarray(Pfile, "r+", Float64)  # maybe r+ is needed
+        nt = size(P, 3)
+
+        ∇²_stencil = get_∇²_stencil(stencilorder)
+        ∇²r = length(∇²_stencil) ÷ 2
+
+        padding = taper + ∇²r
+        (_nz, _nx) = (n+2padding for n in (nz, nx))
+
+        # defining pressure field
+        _revP = zeros(eltype(P0), (_nz, _nx, 3))
+        # pressure field of interest
+        revP = @view _revP[1+padding:end-padding, 1+padding:end-padding, :]
+        revP[:,:,1] .= P0
+
+        # offseting signals
+        _signals = offset_signals(signals, padding)
+
+        # defining velocity field
+        _v = padextremes(v, taper)
+
+        attenuation_factors = get_attenuation_factors(_revP, taper,
+                                                      attenuation,
+                                                      ∇²r)
+
+        I∇²r = CartesianIndex(∇²r, ∇²r)
+        @inbounds for T in Int64.(2:nt)
+            oldt = mod1(T-2, 3)
+            curt = mod1(T-1, 3)
+            newt = mod1(T,   3)
+            oldP = @view _revP[:,:,oldt]
+            curP = @view _revP[:,:,curt]
+            newP = @view _revP[:,:,newt]
+
+            # putting 1D signals
+            putsignals!(_signals, T, curP)
+
+            # solve P equation
+            update_P!(newP, curP, oldP, _v,
+                      ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                      attenuation_factors)
+
+            @threads for I in CartesianIndices(v)
+                image[I] += revP[I,newt] * P[I,2+nt-T]  # init=2->2
+            end
+
+            # if T==300
+                # plt.imshow(revP[:,:,newt]; aspect="auto")
+                # plt.show()
+
+                # plt.imshow(P[:,:,2+nt-T]; aspect="auto")
+                # plt.show()
+
+                # plt.imshow(image; aspect="auto")
+                # plt.show()
+            # end
+
+        end
+        return image
+    end
+
+
+
     function propagateshots(grid, v, P0=zero(v);
                             seisfile,
                             multiseisfile,
                             shotssignals,
-                            shotsrecpositions=[surfaceindexes(1:grid.nx)
+                            shotsrecpositions=[surfaceindices(1:grid.nx)
                                                for shot in shotssignals],
                             stencilorder::Integer=8,
                             taper=TAPER, attenuation=ATTENUATION)
@@ -487,7 +548,7 @@ module Acoustics2D
                      migratedfile,    # output migration product file
                      Pfile,           # propagation file
                      reversedPfile,   # seismograms retro propagated
-                     shotsrecpositions=[surfaceindexes(1:grid.nx)
+                     shotsrecpositions=[surfaceindices(1:grid.nx)
                                         for shot in shotssignals],
                      stencilorder::Integer=8,
                      taper=TAPER, attenuation=ATTENUATION)
@@ -502,10 +563,7 @@ module Acoustics2D
                 S |> println
 
             # propagating signals
-            P = propagate(grid, v, signals, P0; Pfile=Pfile)
-
-                # debug
-                "propagated" |> println
+            @time P = propagate(grid, v, signals, P0; Pfile=Pfile)
 
             # reverse-propagating seimograms
             recpositions = shotsrecpositions[S]
@@ -513,17 +571,8 @@ module Acoustics2D
             seisslice = pos:pos+nrecs-1
             seis = @view multiseis[:,seisslice]
             seissignals = seis2signals(seis, recpositions)
-            revP = propagate(grid, v, seissignals; Pfile=reversedPfile)
-
-                # debug
-                "rev propagated" |> println
-
-            # applying image condition
-            # imagecondition!(P, revP, migrated)
-            cachedimagecondition!(P, revP, migrated; ntcache=300)
-
-                # debug
-                "image condition done" |> println
+            # revP = propagate(grid, v, seissignals; Pfile=reversedPfile)
+            @time revpropagateimcond(grid, v, seissignals; Pfile=Pfile, image=migrated)
 
             pos += nrecs
         end
@@ -536,7 +585,7 @@ module Acoustics2D
     Slices a seismogram out of a pressure field, P{Any, 3}(nz, nx, nt),
     and returns a copy of it.
     """
-    function P2seis(P, recpositions=surfaceindexes(axes(P,2)))
+    function P2seis(P, recpositions=surfaceindices(axes(P,2)))
         seis = copy(P[recpositions,:]')
     end
 
@@ -545,7 +594,7 @@ module Acoustics2D
     Transforms a seismogram array into an array of Signal1D's with reversed
     wavelets. This array is useful in future in RTM steps.
     """
-    function seis2signals(seis, recpositions=surfaceindexes(axes(seis,2)))
+    function seis2signals(seis, recpositions=surfaceindices(axes(seis,2)))
         [Signal1D(pos[1], pos[2], seis[end:-1:1, x])
          for (x, pos) in enumerate(recpositions)]
     end

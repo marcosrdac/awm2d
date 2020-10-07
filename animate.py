@@ -68,9 +68,11 @@ if __name__ == '__main__':
 
     outfolder = "animations"
 
-    # files = [Pfile, revPfile]
-    files = [Pfile]
+    files = [Pfile, revPfile]
+    # files = [Pfile]
+    # files = [revPfile]
 
     for f in files:
         outf = join(outfolder, f"{splitext(basename(f))[0]}.gif")
+        print(outf)
         animate_snaps(f, outf, order='F')

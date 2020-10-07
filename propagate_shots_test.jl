@@ -18,22 +18,35 @@ grid = FDMGrid(Δz, Δx, Δt, nz, nx, nt)
 "defining sources" |> println
 signature = discarray(sourcesignaturefile)
 
-(sz1, sx1) = 1, nx÷2 - (nx÷4+1)
-(sz2, sx2) = 1, nx÷2 - (nx÷8+1)
-(sz3, sx3) = 1, nx÷2
-(sz4, sx4) = 1, nx÷2 + (nx÷8+1)
-(sz5, sx5) = 1, nx÷2 + (nx÷4+1)
+nshot = 9
+Δxshot = nx ÷ (1+nshot+4)
 
-shotssignals = [[Signal1D(sz1, sx1, signature)],
-                [Signal1D(sz2, sx2, signature)],
-                [Signal1D(sz3, sx3, signature)],
-                [Signal1D(sz4, sx4, signature)],
-                [Signal1D(sz5, sx5, signature)]]
+shotssignals = [[Signal1D(1, x, signature)]
+                for i in (1:nshot) .- (1+nshot÷2)
+                for x = nx÷2+i*Δxshot]
 
-"defining receptors" |> println
-#                                             array             sx  Δx  nrec
-shotsrecpositions = [receptorpositions("split", signals[1].x,  ceil(Int, 5/321*nx),  12)
-                     for signals in shotssignals]
+# println(1)
+# for shots in shotssignals, shot in shots
+    # display(shot.x)
+    # println()
+# end
+# println(nx)
+
+
+#"defining receptors" |> println
+#Δxrec = 10
+#nrec  = 2*ceil(Int, Δxshot/10)
+#shotsrecpositions = [receptorpositions("split", signals[1].x,  Δxrec, nrec)
+#                     for signals in shotssignals]
+#
+## println(1)
+## for shots in shotsrecpositions, shot in shots
+#    # display(shot)
+#    # println()
+## end
+## println(nx)
+
+shotsrecpositions = [edgeindices(nz, nx) for shot in shotssignals]
 
 
 "source signal propagation" |> println
@@ -44,6 +57,7 @@ shotsrecpositions = [receptorpositions("split", signals[1].x,  ceil(Int, 5/321*n
                      seisfile=seisfile,
                      multiseisfile=multiseisfile,
                      shotssignals=shotssignals,
-                     shotsrecpositions=shotsrecpositions,)
+                     shotsrecpositions=shotsrecpositions,
+                     )
 
 run(`python view.py $multiseisfile`)

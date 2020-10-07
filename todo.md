@@ -1,5 +1,6 @@
 # To do  
 
+## Now
 - [X] solve wave equation
 - [X] add taper
 - [X] save time snaps to binary file
@@ -20,4 +21,16 @@
 - [X] generate synthetic wavelets --> one shot
 - [X] generate synthetic wavelets --> various shots
 - [X] make complete migration routine
+- [X] adjust overhead
 - [.] madagascar for julia: sadly, it yet doesn't exist
+- [ ] read articles:
+  - [ ] ...
+- [ ] train neural network with 1 propagation cube
+
+## Future
+- [ ] create database
+  - [ ] create various velocity fields
+  - [ ] propagate signals into the velocity fields
+- [ ] read data and format it to 
+
+
