@@ -14,15 +14,15 @@ multiseisfile = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
 multiseisgainfile = "/mnt/hdd/home/tmp/awp_data/multi_seis_gain.bin"
 
 # mesh definition
-Δz = 10.0 # km
-Δx = 10.0 # km
+Δz = 1.0 # km
+Δx = 1.0 # km
 Δt = 0.001 # s
-nt = 4500
+# nt = 4500
 # nt = 3000
 # nx = 50
 # nz = 50
 # nt = 800
-# nt = 2600
+nt = 2600
 
 # stencil order
 stencil_order = 8

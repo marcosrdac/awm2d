@@ -68,8 +68,8 @@ if __name__ == '__main__':
 
     outfolder = "animations"
 
-    files = [Pfile, revPfile]
-    # files = [Pfile]
+    # files = [Pfile, revPfile]
+    files = [Pfile]
     # files = [revPfile]
 
     for f in files:

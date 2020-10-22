@@ -16,7 +16,7 @@ mode = "pic"
 
 if mode === "pic"
     # inputfilename = "models/marmousifull.png"
-    inputfilename = "models/boat_sunset.png"
+    inputfilename = "models/ref.png"
 
 
     luma(rgb) = 0.2126rgb[1] + 0.7152rgb[2] + 0.0722rgb[3]

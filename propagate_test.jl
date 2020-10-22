@@ -16,7 +16,8 @@ nz, nx = size(v)
 grid = FDMGrid(Δz, Δx, Δt, nz, nx, nt)
 
 "defining signal" |> println
-(sz, sx) = sourceposition("split", (1,nx))
+# (sz, sx) = sourceposition("split", (1,nx))
+(sz, sx) = (100,1)
 # (sz, sx) = (250, 178)
 sourcesignature = discarray(sourcesignaturefile)
 signal = Signal1D(sz, sx, sourcesignature)

@@ -1,6 +1,5 @@
 # To do  
 
-## Now
 - [X] solve wave equation
 - [X] add taper
 - [X] save time snaps to binary file
@@ -15,22 +14,26 @@
 - [X] read signal from binary file
 - [X] dx != dz
 - [X] different laplacian orders
+- [X] madagascar Julia API: sadly, it yet doesn't exist
 - [X] Signal1d/Signal2d -> Vector{Signal1d}(n_sources)
 - [X] code cleanup
 - [X] receptors position --> local offsets (source position, n_recept., spacing, array)
-- [X] generate synthetic wavelets --> one shot
-- [X] generate synthetic wavelets --> various shots
+- [X] generate synthetic seismogram (one shot)
+- [X] generate synthetic seismograms (various shots)
 - [X] make complete migration routine
-- [X] adjust overhead
-- [.] madagascar for julia: sadly, it yet doesn't exist
-- [ ] read articles:
-  - [ ] ...
+- [X] adjust image condition overhead
+- [O] read some articles (*busquem conhecimento...*  - ET Bilu)
+  - [X] 1983_baysal_rtm
+  - [X] 1984_levin_rtm_principle
+  - [X] 1989_mcmechan_acoustic_rtm_imaging_review **(a 10 for this one's didactic!)**
+  - [X] 1996_loewenthal_huygens_principle_x_exploding_reflector
+  - [X] 2018_sortberg_wave_eq_solution_via_ann
+  - [X] 2018_pestana_rem_wave_equation_time_evolution
+  - [X] 2020_neural_ode_exploration_and_implementation
+- [ ] program REM
+- [ ] learn an autograd with an ANN exaple
 - [ ] train neural network with 1 propagation cube
-
-## Future
-- [ ] create database
-  - [ ] create various velocity fields
-  - [ ] propagate signals into the velocity fields
-- [ ] read data and format it to 
-
-
+- [ ] study LSTM ANNs
+- [ ] create velocity fields database
+- [ ] create useful propagation snaps database
+- [ ] create different useful WE aproximators using ANNs
