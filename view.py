@@ -25,7 +25,7 @@ else:
     filename = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
     # filename, nt = "/mnt/hdd/home/tmp/awp_data/P.bin", 2600-1
-    filename, nt = "/mnt/hdd/home/tmp/awp_data/P.bin", 600-1
+    filename, nt = "/mnt/hdd/home/tmp/awp_data/P.bin", 300-1
 
 
 arr = discarray(filename, order='F')

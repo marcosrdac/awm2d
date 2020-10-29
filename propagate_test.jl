@@ -16,7 +16,7 @@ nz, nx = size(v)
 grid = FDMGrid(Δz, Δx, Δt, nz, nx, nt)
 
 "defining signal" |> println
-(sz, sx) = sourceposition("split", (1,nx))
+(sz, sx) = 1, nx÷2
 # (sz, sx) = (100,1)
 # (sz, sx) = (250, 178)
 sourcesignature = discarray(sourcesignaturefile)
@@ -32,7 +32,7 @@ P0 = zero(v)
 
 # snaps
 # @time P = propagate(grid, v, signal, P0; Pfile=Pfile, stencilorder=8)
-@time P = propagate_rem(grid, v, signal, P0; Pfile=Pfile, stencilorder=8)
+@time P = propagate_rem(grid, v, signal, P0; Pfile=Pfile, stencilorder=2)
 run(`python view.py $Pfile $(300-1)`)
 
 # and seismogram

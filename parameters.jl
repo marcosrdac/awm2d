@@ -23,7 +23,9 @@ multiseisgainfile = "/mnt/hdd/home/tmp/awp_data/multi_seis_gain.bin"
 # nx = 50
 # nz = 50
 # nt = 800
+# nt = 2600
 nt = 300
+# nt = 300
 # nt = 100
 
 # stencil order

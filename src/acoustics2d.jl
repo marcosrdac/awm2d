@@ -260,9 +260,9 @@ module Acoustics2D
 
     """
         ∇²(A, I, stencil, Δz, Δx)
-    Function get the laplacian of a point inside an array.
+    2D laplacian of a point inside an array.
     """
-    function ∇²(A, I, stencil, Δz, Δx)
+    function ∇²(A, I, stencil, Δz=1, Δx=1)
         z, x = Tuple(I)
         r = length(stencil) ÷ 2
         sumz = sumx = zero(eltype(A))
@@ -280,7 +280,7 @@ module Acoustics2D
         compute_∇²(A, stencil, Δz, Δx)
     Function get the laplacian field over an array.
     """
-    function compute_∇²(A, stencil, Δz, Δx; out=similar(A))
+    function compute_∇²(A, stencil, Δz=1, Δx=1; out=similar(A))
         r = length(stencil) ÷ 2
         @threads for I in CartesianIndices((1+r:size(A,1)-r, 1+r:size(A,2)-r))
             out[I] = ∇²(A, I, stencil, Δz, Δx)
@@ -369,62 +369,28 @@ module Acoustics2D
     # end
 
 
-    function update_P_rem!(newP!, P, PP, vel,
+    function update_P_rem!(newP!, P, PP, vel, padding,
                            coss, Q, QQ, lap,
-                           ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                           ∇²_stencil, Δz, Δx,
                            R, M, J, attenuation_factors)
-        r = length(∇²_stencil) ÷ 2
-        _QQ = @view QQ[1+r:end-r, 1+r:end-r]
-        _Q = @view Q[1+r:end-r, 1+r:end-r]
-        _lap = @view lap[1+r:end-r, 1+r:end-r]
-
-        coss .= 0.
+        coss .= 0
         for k = 1:M
+            println(k, "\t", J[k])
             if k == 1
-                QQ .= P  #.* attenuation_factors
+                @. QQ = P  * attenuation_factors
             else
                 compute_∇²(Q, ∇²_stencil, Δz, Δx; out=lap)
                 if k == 2
-                    _QQ .= _Q .+ (2/(R^2)) .* (vel.^2) .* _lap
+                    @. QQ = Q + 2048 * 2(vel/R)^2 * lap
                 else
-                    _QQ .= 2_Q .+ 4(vel.^2)./(R^2) .* _lap .- _QQ
+                    @. QQ = 2Q + 2048 * 4(vel/R)^2 * lap - QQ
                 end
             end
-            coss .= coss + J[k] * QQ
+            @. coss += J[k] * QQ
             Q, QQ = QQ, Q
-            # _Q, _QQ = _QQ, _Q
         end
-        newP! .= - PP .+ 2coss  #.* attenuation_factors
+        @. newP! = 2coss - PP  * attenuation_factors
     end
-
-
-    # function update_P_rem!(newP!, P, PP, vel,
-                           # coss, Q, QQ, lap,
-                           # ∇²_stencil, I∇²r, Δz, Δx, Δt,
-                           # R, M, J, attenuation_factors)
-        # r = length(∇²_stencil) ÷ 2
-        # _QQ = @view QQ[1+r:end-r, 1+r:end-r]
-        # _Q = @view Q[1+r:end-r, 1+r:end-r]
-        # _lap = @view lap[1+r:end-r, 1+r:end-r]
-
-        # coss .= 0.
-        # for k = 1:M
-            # if k == 1
-                # QQ .= P  #.* attenuation_factors
-            # else
-                # compute_∇²(Q, ∇²_stencil, Δz, Δx; out=lap)
-                # if k == 2
-                    # _QQ .= _Q .+ (2/(R^2)) .* (vel.^2) .* _lap
-                # else
-                    # _QQ .= 2_Q .+ 4(vel.^2)./(R^2) .* _lap .- _QQ
-                # end
-            # end
-            # coss .= coss + J[k] * QQ
-            # Q, QQ = QQ, Q
-            # _Q, _QQ = _QQ, _Q
-        # end
-        # newP! .= - PP .+ 2coss  #.* attenuation_factors
-    # end
 
 
     """
@@ -571,9 +537,9 @@ module Acoustics2D
         _signals = offset_signals(signals, padding)
 
         # defining velocity field
-        _v = padextremes(v, taper)
+        _v = padextremes(v, padding)
         if direct_only
-            _v[:,taper+1:end-taper] .= repeat(v[1:1,:], nz+2taper, 1)
+            _v[:,padding+1:end-padding] .= repeat(v[1:1,:], nz+padding, 1)
         end
 
         if onlyseis
@@ -584,16 +550,17 @@ module Acoustics2D
             savedP = discarray(Pfile, "w+", Float64, (nz, nx, nt))
         end
 
-        attenuation_factors = get_attenuation_factors(_P, taper,
+        attenuation_factors = get_attenuation_factors(_P, padding,
                                                       attenuation,
                                                       ∇²r)
 
         # REM part
         Vmax = maximum(v)
-        Δl = sqrt(1/Δx^2 + 1/Δz^2)
-        R = π*Vmax*√Δl
-        M = 1+ceil(Int, R*Δt)  # M > R Δt
-        J = besselj.(0:2:2M, R*Δt)
+        #Δz = Δx = 1
+        # Δt= 0.001
+        R = π*Vmax*√(1/Δx^2 + 1/Δz^2) /sqrt(2048)
+        M = ceil(Int, R*Δt)+1  # M > R Δt
+        J = [besselj(2k, R*Δt) for k in 0:M]
 
         cosLΔt_P = zero(_P[:,:,1])
         curQ = similar(_P[:,:,1])
@@ -613,9 +580,9 @@ module Acoustics2D
             putsignals!(_signals, T, curP)
 
             # solve P equation
-            update_P_rem!(newP, curP, oldP, _v,
+            update_P_rem!(newP, curP, oldP, _v, padding,
                           cosLΔt_P, curQ, newQ, ∇²curQ,
-                          ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                          ∇²_stencil, Δz, Δx,
                           R, M, J,  # differ!
                           attenuation_factors)
             # update_P!(newP, curP, oldP, _v,
