@@ -1,5 +1,6 @@
 module Acoustics2D
     using Base.Threads
+    using SpecialFunctions
     using Parameters
     using StaticArrays
     include("discarrays.jl")
@@ -12,7 +13,7 @@ module Acoustics2D
     export rickerwave, sourceposition, receptorpositions, shotsposition
     export P2seis, seis2signals, imagecondition
     export zerotoone, putbetween
-    export propagate, propagateshots, migrate
+    export propagate, propagate_rem, propagateshots, migrate
     export surfaceindices, edgeindices
     export seisgain
 
@@ -258,10 +259,8 @@ module Acoustics2D
 
 
     """
-        ∇²(A, IL)
-    Function get the laplacian of a point inside an array. In order to optimize code,
-    it actually calculates the laplacian without actually dividing the values by h².
-    Then it's a h² laplacian function.
+        ∇²(A, I, stencil, Δz, Δx)
+    Function get the laplacian of a point inside an array.
     """
     function ∇²(A, I, stencil, Δz, Δx)
         z, x = Tuple(I)
@@ -274,6 +273,19 @@ module Acoustics2D
             sumx += A[z, x+i] * stencil[r+i+1]
         end
         sumz/Δz^2 + sumx/Δx^2
+    end
+
+
+    """
+        compute_∇²(A, stencil, Δz, Δx)
+    Function get the laplacian field over an array.
+    """
+    function compute_∇²(A, stencil, Δz, Δx; out=similar(A))
+        r = length(stencil) ÷ 2
+        @threads for I in CartesianIndices((1+r:size(A,1)-r, 1+r:size(A,2)-r))
+            out[I] = ∇²(A, I, stencil, Δz, Δx)
+        end
+        return out
     end
 
 
@@ -315,6 +327,106 @@ module Acoustics2D
     end
 
 
+    function Q(k, x)
+        if     k>=4  2*(1+2x^2) * Q(k-2, x) - Q(k-4, x)
+        elseif k==2  1+2x^2
+        else         one(x)
+        end
+    end
+
+    using PyPlot
+
+    # when it works, add attenuation_factor...
+    # function update_P_rem!(newP!, curP, oldP, _v,
+                           # cosLΔt_P, curQ, newQ, ∇²curQ,
+                           # ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                           # R, M, J, attenuation_factors)
+        # r = length(∇²_stencil) ÷ 2
+        # @views begin
+            # _newQ = _oldQ = newQ[1+r:end-r, 1+r:end-r]
+            # _curQ = curQ[1+r:end-r, 1+r:end-r]
+            # _∇²curQ = ∇²curQ[1+r:end-r, 1+r:end-r]
+        # end
+
+        # cosLΔt_P .= 0.
+        # for k = 0:M
+            # if k === 0
+                # @. newQ = curP   #.* attenuation_factors
+            # else
+                # compute_∇²(curQ, ∇²_stencil, Δz, Δx; out=∇²curQ)
+                # if k === 1
+                    # @. _newQ = _curQ + 2(_v/R)^2 * _∇²curQ
+                # else
+                    # @. _newQ = 2_curQ + 4(_v/R)^2 * _∇²curQ - _oldQ
+                # end
+            # end
+            # cosLΔt_P .+= J[1+k] * newQ
+
+            # curQ, newQ = newQ, curQ
+            # _curQ, _newQ, _oldQ = _newQ, _curQ, _curQ
+        # end
+        # @. newP! = 2cosLΔt_P - oldP  #.* attenuation_factors
+    # end
+
+
+    function update_P_rem!(newP!, P, PP, vel,
+                           coss, Q, QQ, lap,
+                           ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                           R, M, J, attenuation_factors)
+        r = length(∇²_stencil) ÷ 2
+        _QQ = @view QQ[1+r:end-r, 1+r:end-r]
+        _Q = @view Q[1+r:end-r, 1+r:end-r]
+        _lap = @view lap[1+r:end-r, 1+r:end-r]
+
+        coss .= 0.
+        for k = 1:M
+            if k == 1
+                QQ .= P  #.* attenuation_factors
+            else
+                compute_∇²(Q, ∇²_stencil, Δz, Δx; out=lap)
+                if k == 2
+                    _QQ .= _Q .+ (2/(R^2)) .* (vel.^2) .* _lap
+                else
+                    _QQ .= 2_Q .+ 4(vel.^2)./(R^2) .* _lap .- _QQ
+                end
+            end
+            coss .= coss + J[k] * QQ
+            Q, QQ = QQ, Q
+            # _Q, _QQ = _QQ, _Q
+        end
+        newP! .= - PP .+ 2coss  #.* attenuation_factors
+    end
+
+
+    # function update_P_rem!(newP!, P, PP, vel,
+                           # coss, Q, QQ, lap,
+                           # ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                           # R, M, J, attenuation_factors)
+        # r = length(∇²_stencil) ÷ 2
+        # _QQ = @view QQ[1+r:end-r, 1+r:end-r]
+        # _Q = @view Q[1+r:end-r, 1+r:end-r]
+        # _lap = @view lap[1+r:end-r, 1+r:end-r]
+
+        # coss .= 0.
+        # for k = 1:M
+            # if k == 1
+                # QQ .= P  #.* attenuation_factors
+            # else
+                # compute_∇²(Q, ∇²_stencil, Δz, Δx; out=lap)
+                # if k == 2
+                    # _QQ .= _Q .+ (2/(R^2)) .* (vel.^2) .* _lap
+                # else
+                    # _QQ .= 2_Q .+ 4(vel.^2)./(R^2) .* _lap .- _QQ
+                # end
+            # end
+            # coss .= coss + J[k] * QQ
+            # Q, QQ = QQ, Q
+            # _Q, _QQ = _QQ, _Q
+        # end
+        # newP! .= - PP .+ 2coss  #.* attenuation_factors
+    # end
+
+
     """
         get_attenuation_factor(dist)
     Add description...
@@ -328,9 +440,9 @@ module Acoustics2D
         factors = ones(Float64, (size(A,1), size(A,2)))
         for i in 1:taper+offset
             depth = taper-i+1
-            factors[i, i:end+1-i] .= factors[end-i+1, i:end-i+1] .=
+            @. factors[i, i:end+1-i] = factors[end-i+1, i:end-i+1] =
                 get_attenuation_factor(depth, attenuation)
-            factors[i:end+1-i, i] .= factors[i:end-i+1, end-i+1] .=
+            @. factors[i:end+1-i, i] = factors[i:end-i+1, end-i+1] =
                 get_attenuation_factor(depth, attenuation)
         end
         factors
@@ -343,7 +455,7 @@ module Acoustics2D
             curT = one(newT) + newT - startT
             signalT = one(newT) + curT - signal.startT
             if (signal.startT <= curT) & (signalT <= length(signal.values))
-                curP![signal.z, signal.x] = signal.values[signalT]
+                curP![signal.z, signal.x] += signal.values[signalT]
             end
         end
     end
@@ -418,6 +530,97 @@ module Acoustics2D
             update_P!(newP, curP, oldP, _v,
                       ∇²_stencil, I∇²r, Δz, Δx, Δt,
                       attenuation_factors)
+
+            if (newt === ntcache) | (T === nt)
+                ntslice = (1:newt) .+ ntcache*floor(Int64, (T-1)/ntcache)
+                if onlyseis
+                    savedseis[ntslice,:] .= P[recpositions,1:newt]'
+                else
+                    savedP[:,:,ntslice] .= P[:,:,1:newt]
+                end
+            end
+        end
+    end
+
+
+    function propagate_rem(grid, v, signals,
+                           P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
+                           Pfile="",
+                           seisfile="",
+                           stencilorder::Integer=8,
+                           recpositions=surfaceindices(1:grid.nx),
+                           direct_only::Bool=false,)
+        ntcache = 3
+        onlyseis = seisfile !== ""
+
+        @unpack Δz, Δx, Δt, nz, nx, nt = grid
+
+        ∇²_stencil = get_∇²_stencil(stencilorder)
+        ∇²r = length(∇²_stencil) ÷ 2
+
+        padding = taper + ∇²r
+        (_nz, _nx) = (n+2padding for n in (nz, nx))
+
+        # defining pressure field
+        _P = zeros(eltype(P0), (_nz, _nx, ntcache))
+        # pressure field of interest
+        P = @view _P[1+padding:end-padding, 1+padding:end-padding, :]
+        P[:,:,1] .= P0
+
+        # offseting signals
+        _signals = offset_signals(signals, padding)
+
+        # defining velocity field
+        _v = padextremes(v, taper)
+        if direct_only
+            _v[:,taper+1:end-taper] .= repeat(v[1:1,:], nz+2taper, 1)
+        end
+
+        if onlyseis
+            nrec = length(recpositions)
+            savedseis = discarray(seisfile, "w+", Float64, (nt, nrec))
+            savedseis[1,:] .= P[recpositions, 1]
+        else
+            savedP = discarray(Pfile, "w+", Float64, (nz, nx, nt))
+        end
+
+        attenuation_factors = get_attenuation_factors(_P, taper,
+                                                      attenuation,
+                                                      ∇²r)
+
+        # REM part
+        Vmax = maximum(v)
+        Δl = sqrt(1/Δx^2 + 1/Δz^2)
+        R = π*Vmax*√Δl
+        M = 1+ceil(Int, R*Δt)  # M > R Δt
+        J = besselj.(0:2:2M, R*Δt)
+
+        cosLΔt_P = zero(_P[:,:,1])
+        curQ = similar(_P[:,:,1])
+        newQ = similar(_P[:,:,1])
+        ∇²curQ = similar(_P[:,:,1])
+
+        I∇²r = CartesianIndex(∇²r, ∇²r)
+        @inbounds for T in eltype(nt)(2):nt
+            oldt = mod1(T-2, ntcache)
+            curt = mod1(T-1, ntcache)
+            newt = mod1(T,   ntcache)
+            oldP = @view _P[:,:,oldt]
+            curP = @view _P[:,:,curt]
+            newP = @view _P[:,:,newt]
+
+            # putting 1D signals
+            putsignals!(_signals, T, curP)
+
+            # solve P equation
+            update_P_rem!(newP, curP, oldP, _v,
+                          cosLΔt_P, curQ, newQ, ∇²curQ,
+                          ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                          R, M, J,  # differ!
+                          attenuation_factors)
+            # update_P!(newP, curP, oldP, _v,
+                      # ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                      # attenuation_factors)
 
             if (newt === ntcache) | (T === nt)
                 ntslice = (1:newt) .+ ntcache*floor(Int64, (T-1)/ntcache)

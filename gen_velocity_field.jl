@@ -10,8 +10,8 @@ V = [3. 5. 9.]' # km/s
 # V = [0. 3.]' # km/s
 
 
-# mode = "3lay"
-mode = "pic"
+mode = "3lay"
+# mode = "pic"
 
 
 if mode === "pic"
