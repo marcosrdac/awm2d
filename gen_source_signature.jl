@@ -5,7 +5,7 @@ using .Acoustics2D
 using .Discarrays
 
 
-ν = 10 # Hz
+ν = .5 # Hz
 
 
 signature = rickerwave(ν, Δt)

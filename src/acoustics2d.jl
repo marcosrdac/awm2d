@@ -289,15 +289,15 @@ module Acoustics2D
     end
 
 
-    """
-        new_p(IP, Iv, curP, oldP, v, Δz, Δx, Δt)
-    Function that calculates the next P value at point IP in pressure field,
-    considering propagation velocity at that equal to point v[Iv]; curP and
-    oldP are, respectively, the current and old pressure field arrays.
-    """
-    function new_p(IP, Iv, curP, oldP, v, ∇²_stencil, Δz, Δx, Δt)
-        2curP[IP] - oldP[IP] + v[Iv]^2 * Δt * ∇²(curP, IP, ∇²_stencil, Δz, Δx)
-    end
+    # """
+        # new_p(I, curP, oldP, v, Δz, Δx, Δt)
+    # Function that calculates the next P value at point IP in pressure field,
+    # considering propagation velocity at that equal to point v[Iv]; curP and
+    # oldP are, respectively, the current and old pressure field arrays.
+    # """
+    # function new_p(I, curP, oldP, v, ∇²_stencil, Δz, Δx, Δt)
+        # 2curP[I] - oldP[I] + (v[I]*Δt)^2 * ∇²(curP, I, ∇²_stencil, Δz, Δx)
+    # end
 
     """
         new_p(IP, Iv, curP, oldP, v, Δz, Δx, Δt, attenuation_factor)
@@ -307,22 +307,22 @@ module Acoustics2D
     result is multiplied by an attenuation_factor ∈ [0,1]. oldP is attenuated
     twice, as in the usual taper attenuation scheme.
     """
-    function new_p(IP, Iv, curP, oldP, v, ∇²_stencil, Δz, Δx, Δt, attenuation_factor)
+    function new_p(I, curP, oldP, v, ∇²_stencil, Δz, Δx, Δt, attenuation_factor)
         attenuation_factor * begin
-            2curP[IP]  +  v[Iv]^2 * Δt * ∇²(curP, IP, ∇²_stencil, Δz, Δx) -
-            attenuation_factor * oldP[IP]
+            2curP[I]  +  v[I]^2 * Δt^2 * ∇²(curP, I, ∇²_stencil, Δz, Δx) - 
+            oldP[I] * attenuation_factor
         end
     end
 
 
-    function update_P!(newP!, curP, oldP, _v,
-                       ∇²_stencil, I∇²r, Δz, Δx, Δt,
+    function update_P!(newP!, curP, oldP, v,
+                       ∇²_stencil, Δz, Δx, Δt,
                        attenuation_factors)
-        @threads for Iv in CartesianIndices(_v)
-            IP = Iv + I∇²r
-            newP![IP] = new_p(IP, Iv, curP, oldP, _v,
-                               ∇²_stencil, Δz, Δx, Δt,
-                               attenuation_factors[IP])
+        r = length(∇²_stencil) ÷ 2
+        @threads for I in CartesianIndices((1+r:size(v,1)-r, 1+r:size(v,2)-r))
+            newP![I] = new_p(I, curP, oldP, v,
+                             ∇²_stencil, Δz, Δx, Δt,
+                             attenuation_factors[I])
         end
     end
 
@@ -337,59 +337,26 @@ module Acoustics2D
     using PyPlot
 
     # when it works, add attenuation_factor...
-    # function update_P_rem!(newP!, curP, oldP, _v,
-                           # cosLΔt_P, curQ, newQ, ∇²curQ,
-                           # ∇²_stencil, I∇²r, Δz, Δx, Δt,
-                           # R, M, J, attenuation_factors)
-        # r = length(∇²_stencil) ÷ 2
-        # @views begin
-            # _newQ = _oldQ = newQ[1+r:end-r, 1+r:end-r]
-            # _curQ = curQ[1+r:end-r, 1+r:end-r]
-            # _∇²curQ = ∇²curQ[1+r:end-r, 1+r:end-r]
-        # end
-
-        # cosLΔt_P .= 0.
-        # for k = 0:M
-            # if k === 0
-                # @. newQ = curP   #.* attenuation_factors
-            # else
-                # compute_∇²(curQ, ∇²_stencil, Δz, Δx; out=∇²curQ)
-                # if k === 1
-                    # @. _newQ = _curQ + 2(_v/R)^2 * _∇²curQ
-                # else
-                    # @. _newQ = 2_curQ + 4(_v/R)^2 * _∇²curQ - _oldQ
-                # end
-            # end
-            # cosLΔt_P .+= J[1+k] * newQ
-
-            # curQ, newQ = newQ, curQ
-            # _curQ, _newQ, _oldQ = _newQ, _curQ, _curQ
-        # end
-        # @. newP! = 2cosLΔt_P - oldP  #.* attenuation_factors
-    # end
-
-
     function update_P_rem!(newP!, P, PP, vel, padding,
                            coss, Q, QQ, lap,
                            ∇²_stencil, Δz, Δx,
                            R, M, J, attenuation_factors)
         coss .= 0
         for k = 1:M
-            println(k, "\t", J[k])
             if k == 1
-                @. QQ = P  * attenuation_factors
+                @. QQ = P  #* attenuation_factors
             else
                 compute_∇²(Q, ∇²_stencil, Δz, Δx; out=lap)
                 if k == 2
-                    @. QQ = Q + 2048 * 2(vel/R)^2 * lap
+                    @. QQ = Q + 2(vel/R)^2 * lap
                 else
-                    @. QQ = 2Q + 2048 * 4(vel/R)^2 * lap - QQ
+                    @. QQ = 2Q + 4(vel/R)^2 * lap - QQ
                 end
             end
             @. coss += J[k] * QQ
             Q, QQ = QQ, Q
         end
-        @. newP! = 2coss - PP  * attenuation_factors
+        @. newP! = 2coss - PP  #* attenuation_factors
     end
 
 
@@ -421,6 +388,7 @@ module Acoustics2D
             curT = one(newT) + newT - startT
             signalT = one(newT) + curT - signal.startT
             if (signal.startT <= curT) & (signalT <= length(signal.values))
+                # curP![signal.z, signal.x] = signal.values[signalT]
                 curP![signal.z, signal.x] += signal.values[signalT]
             end
         end
@@ -452,6 +420,8 @@ module Acoustics2D
 
         padding = taper + ∇²r
         (_nz, _nx) = (n+2padding for n in (nz, nx))
+        @show _nz, _nx
+        @show nz, nx
 
         # defining pressure field
         _P = zeros(eltype(P0), (_nz, _nx, ntcache))
@@ -463,9 +433,9 @@ module Acoustics2D
         _signals = offset_signals(signals, padding)
 
         # defining velocity field
-        _v = padextremes(v, taper)
+        _v = padextremes(v, padding)
         if direct_only
-            _v[:,taper+1:end-taper] .= repeat(v[1:1,:], nz+2taper, 1)
+            _v[:,padding+1:end-padding] .= repeat(v[1:1,:], nz+padding, 1)
         end
 
         if onlyseis
@@ -476,7 +446,7 @@ module Acoustics2D
             savedP = discarray(Pfile, "w+", Float64, (nz, nx, nt))
         end
 
-        attenuation_factors = get_attenuation_factors(_P, taper,
+        attenuation_factors = get_attenuation_factors(_P, padding,
                                                       attenuation,
                                                       ∇²r)
 
@@ -494,7 +464,7 @@ module Acoustics2D
 
             # solve P equation
             update_P!(newP, curP, oldP, _v,
-                      ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                      ∇²_stencil, Δz, Δx, Δt,
                       attenuation_factors)
 
             if (newt === ntcache) | (T === nt)
@@ -556,11 +526,15 @@ module Acoustics2D
 
         # REM part
         Vmax = maximum(v)
-        #Δz = Δx = 1
-        # Δt= 0.001
-        R = π*Vmax*√(1/Δx^2 + 1/Δz^2) /sqrt(2048)
-        M = ceil(Int, R*Δt)+1  # M > R Δt
+        R = π*Vmax*√(1/Δx^2 + 1/Δz^2)
+        M = ceil(Int, R*Δt+1)  # M > R Δt
         J = [besselj(2k, R*Δt) for k in 0:M]
+
+        @show Vmax
+        @show R
+        @show M
+        @show J
+
 
         cosLΔt_P = zero(_P[:,:,1])
         curQ = similar(_P[:,:,1])
@@ -585,6 +559,7 @@ module Acoustics2D
                           ∇²_stencil, Δz, Δx,
                           R, M, J,  # differ!
                           attenuation_factors)
+
             # update_P!(newP, curP, oldP, _v,
                       # ∇²_stencil, I∇²r, Δz, Δx, Δt,
                       # attenuation_factors)
@@ -635,9 +610,9 @@ module Acoustics2D
         _signals = offset_signals(signals, padding)
 
         # defining velocity field
-        _v = padextremes(v, taper)
+        _v = padextremes(v, padding)
 
-        attenuation_factors = get_attenuation_factors(_revP, taper,
+        attenuation_factors = get_attenuation_factors(_revP, padding,
                                                       attenuation,
                                                       ∇²r)
 
@@ -655,7 +630,7 @@ module Acoustics2D
 
             # solve P equation
             update_P!(newP, curP, oldP, _v,
-                      ∇²_stencil, I∇²r, Δz, Δx, Δt,
+                      ∇²_stencil, Δz, Δx, Δt,
                       attenuation_factors)
 
             @threads for I in CartesianIndices(v)

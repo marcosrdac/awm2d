@@ -33,7 +33,7 @@ P0 = zero(v)
 # snaps
 # @time P = propagate(grid, v, signal, P0; Pfile=Pfile, stencilorder=8)
 @time P = propagate_rem(grid, v, signal, P0; Pfile=Pfile, stencilorder=2)
-run(`python view.py $Pfile $(300-1)`)
+run(`python view.py $Pfile $(1300-1)`)
 
 # and seismogram
 # @time todiscarray(seisfile, P2seis(P))
