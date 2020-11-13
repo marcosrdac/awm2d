@@ -345,18 +345,17 @@ module Acoustics2D
         for k = 1:M
             if k == 1
                 @. QQ = P  #* attenuation_factors
+            elseif k == 2
+                compute_∇²(Q, ∇²_stencil, Δz, Δx; out=lap)
+                @. QQ = Q + 2(vel/R)^2 * lap
             else
                 compute_∇²(Q, ∇²_stencil, Δz, Δx; out=lap)
-                if k == 2
-                    @. QQ = Q + 2(vel/R)^2 * lap
-                else
-                    @. QQ = 2Q + 4(vel/R)^2 * lap - QQ
-                end
+                @. QQ = 2Q + 4(vel/R)^2 * lap - QQ
             end
-            @. coss += J[k] * QQ
+            @. coss = coss + J[k] * QQ
             Q, QQ = QQ, Q
         end
-        @. newP! = 2coss - PP  #* attenuation_factors
+        @. newP! = 2*coss - PP  #* attenuation_factors
     end
 
 
@@ -524,17 +523,18 @@ module Acoustics2D
                                                       attenuation,
                                                       ∇²r)
 
-        # REM part
+        # REM
         Vmax = maximum(v)
         R = π*Vmax*√(1/Δx^2 + 1/Δz^2)
-        M = ceil(Int, R*Δt+1)  # M > R Δt
+        M = ceil(Int, R*Δt)+1  # M > R Δt
         J = [besselj(2k, R*Δt) for k in 0:M]
+        # _v .*= 3
 
         @show Vmax
         @show R
+        @show R*Δt
         @show M
         @show J
-
 
         cosLΔt_P = zero(_P[:,:,1])
         curQ = similar(_P[:,:,1])
@@ -559,10 +559,6 @@ module Acoustics2D
                           ∇²_stencil, Δz, Δx,
                           R, M, J,  # differ!
                           attenuation_factors)
-
-            # update_P!(newP, curP, oldP, _v,
-                      # ∇²_stencil, I∇²r, Δz, Δx, Δt,
-                      # attenuation_factors)
 
             if (newt === ntcache) | (T === nt)
                 ntslice = (1:newt) .+ ntcache*floor(Int64, (T-1)/ntcache)

@@ -6,8 +6,8 @@ using .Acoustics2D
 using .Discarrays
 
 
-V = [3. 5. 9.]' # km/s
-# V = [0. 3.]' # km/s
+V = [1500. 2500. 3500.]' # m/s
+# V = [0. 3.]' # m/s
 
 
 mode = "3lay"
@@ -40,7 +40,7 @@ if mode === "pic"
     v = img2arr(inputfilename, Vmin, Vmax)
 elseif mode === "3lay"
     # NX, NZ = 321, 321
-    NX, NZ = 50, 50
+    NX, NZ = 300, 300
     H1 = H2 = NZ÷3
     V1, V2, V3 = V[1:3]
     v = gen3layv(NZ, NX, H1, H2, V1, V2, V3)

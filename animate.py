@@ -75,4 +75,4 @@ if __name__ == '__main__':
     for f in files:
         outf = join(outfolder, f"{splitext(basename(f))[0]}.gif")
         print(outf)
-        animate_snaps(f, outf, order='F')
+        animate_snaps(f, outf, timestep=20, order='F')
