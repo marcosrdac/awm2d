@@ -10,8 +10,9 @@ V = [1500. 2500. 3500.]' # m/s
 # V = [0. 3.]' # m/s
 
 
-mode = "3lay"
+# mode = "3lay"
 # mode = "pic"
+mode = "discarray"
 
 
 if mode === "pic"
@@ -44,13 +45,15 @@ elseif mode === "3lay"
     H1 = H2 = NZ÷3
     V1, V2, V3 = V[1:3]
     v = gen3layv(NZ, NX, H1, H2, V1, V2, V3)
+elseif mode === "discarray"
+    inputfilename = "models/marmousi.bin"
+    v = discarray(inputfilename, "r", Float64, )
 end
 
+
+todiscarray(vfile, v)
 
 using PyPlot
 plt.imshow(v)
 plt.colorbar()
 plt.show()
-
-
-todiscarray(vfile, v)

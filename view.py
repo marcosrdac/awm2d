@@ -19,14 +19,13 @@ else:
     filename = "/mnt/hdd/home/tmp/awp_data/direct_seis.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/source_signature.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/3lay_migrated.bin"
-    filename = "/mnt/hdd/home/tmp/awp_data/seis.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/migrated_marmousi_5.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/v.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/migrated.bin"
     filename = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
     # filename, nt = "/mnt/hdd/home/tmp/awp_data/P.bin", 2600-1
     filename, nt = "/mnt/hdd/home/tmp/awp_data/P.bin", 500-1
-
+    filename = "/mnt/hdd/home/tmp/awp_data/seis.bin"
 
 arr = discarray(filename, order='F')
 

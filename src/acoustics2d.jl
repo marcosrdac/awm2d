@@ -3,6 +3,7 @@ module Acoustics2D
     using SpecialFunctions
     using Parameters
     using StaticArrays
+    using FFTW
     include("discarrays.jl")
     using .Discarrays
 
@@ -77,7 +78,7 @@ module Acoustics2D
 
     """
         sourceposition(array::String, nz::Integer, nx::Integer)
-    Get's source position as a tuple of elements (sz, sx), according to the
+    Gets source position as a tuple of elements (sz, sx), according to the
     seismic array gotten as parammeter. This function is useful for one-shot
     propagation products. Possible array values are:
         - "endon" or "endon2right";
@@ -234,7 +235,7 @@ module Acoustics2D
         (vmax-vmin) .* zerotoone(A) .+ vmin
     end
 
-    function central_difference_coefs(degree::Integer, order::Integer)
+    function centraldifferencecoefs(degree::Integer, order::Integer)
         @assert order % 2 === 0
         p = Int(floor((order+1)/2))
         # defining P matrix
@@ -253,7 +254,7 @@ module Acoustics2D
 
 
     function get_∇²_stencil(order)
-        coefs = central_difference_coefs(2, order)
+        coefs = centraldifferencecoefs(2, order)
         stencil = SVector{length(coefs)}(coefs)
     end
 
@@ -288,26 +289,39 @@ module Acoustics2D
         return out
     end
 
+    function get_∇²_filter(A, dz=1, dx=1)
+        (nz, nx) = size(A)
+        dkz = 2π/(nz*dz)
+        dkx = 2π/(nx*dx)
+        kz = fill(dkz, nx)' .* (-nz÷2:nz-nz÷2-1)
+        kx = (-nx÷2:nx-nx÷2-1)' .* fill(dkx, nz)
+        Ψ = ifftshift(-(kz.^2 + kx.^2))
+    end
+
+    function apply_filter(Ψ, A; out=similar(A))
+        out .= real(ifft(Ψ .* fft(A)))
+    end
+
 
     # """
-        # new_p(I, curP, oldP, v, Δz, Δx, Δt)
+        # newp(I, curP, oldP, v, Δz, Δx, Δt)
     # Function that calculates the next P value at point IP in pressure field,
     # considering propagation velocity at that equal to point v[Iv]; curP and
     # oldP are, respectively, the current and old pressure field arrays.
     # """
-    # function new_p(I, curP, oldP, v, ∇²_stencil, Δz, Δx, Δt)
+    # function newp(I, curP, oldP, v, ∇²_stencil, Δz, Δx, Δt)
         # 2curP[I] - oldP[I] + (v[I]*Δt)^2 * ∇²(curP, I, ∇²_stencil, Δz, Δx)
     # end
 
     """
-        new_p(IP, Iv, curP, oldP, v, Δz, Δx, Δt, attenuation_factor)
+        newp(IP, Iv, curP, oldP, v, Δz, Δx, Δt, attenuation_factor)
     Function that calculates the next P value at point IP in pressure field,
     considering propagation velocity at that point equal to v[Iv]. curP and
     oldP are, respectively, the current and old pressure field arrays. The
     result is multiplied by an attenuation_factor ∈ [0,1]. oldP is attenuated
     twice, as in the usual taper attenuation scheme.
     """
-    function new_p(I, curP, oldP, v, ∇²_stencil, Δz, Δx, Δt, attenuation_factor)
+    function newp(I, curP, oldP, v, ∇²_stencil, Δz, Δx, Δt, attenuation_factor)
         attenuation_factor * begin
             2curP[I]  +  v[I]^2 * Δt^2 * ∇²(curP, I, ∇²_stencil, Δz, Δx) - 
             oldP[I] * attenuation_factor
@@ -315,12 +329,12 @@ module Acoustics2D
     end
 
 
-    function update_P!(newP!, curP, oldP, v,
-                       ∇²_stencil, Δz, Δx, Δt,
-                       attenuation_factors)
+    function updatePfdm!(newP!, curP, oldP, v,
+                           ∇²_stencil, Δz, Δx, Δt,
+                           attenuation_factors)
         r = length(∇²_stencil) ÷ 2
         @threads for I in CartesianIndices((1+r:size(v,1)-r, 1+r:size(v,2)-r))
-            newP![I] = new_p(I, curP, oldP, v,
+            newP![I] = newp(I, curP, oldP, v,
                              ∇²_stencil, Δz, Δx, Δt,
                              attenuation_factors[I])
         end
@@ -334,28 +348,33 @@ module Acoustics2D
         end
     end
 
-    using PyPlot
+    # using PyPlot
 
     # when it works, add attenuation_factor...
-    function update_P_rem!(newP!, P, PP, vel, padding,
-                           coss, Q, QQ, lap,
-                           ∇²_stencil, Δz, Δx,
-                           R, M, J, attenuation_factors)
-        coss .= 0
+    function updatePrem!(newP!, curP, oldP, v,
+                        cosLΔtP, curQ, newQ, ∇²curQ,
+                        ∇², Δz, Δx,
+                        R, M, cJ, attenuation_factors;
+                        pseudo=false)
+
+        cosLΔtP .= 0
         for k = 1:M
-            if k == 1
-                @. QQ = P  #* attenuation_factors
-            elseif k == 2
-                compute_∇²(Q, ∇²_stencil, Δz, Δx; out=lap)
-                @. QQ = Q + 2(vel/R)^2 * lap
+            if k === 1 newQ .= curP  #* attenuation_factors
             else
-                compute_∇²(Q, ∇²_stencil, Δz, Δx; out=lap)
-                @. QQ = 2Q + 4(vel/R)^2 * lap - QQ
+                # compute laplacian
+                if pseudo  apply_filter(∇², curQ; out=∇²curQ)
+                else       compute_∇²(curQ, ∇², Δz, Δx; out=∇²curQ)
+                end
+
+                # continue Chebychev expansion
+                if k === 2  @. newQ = curQ + 2(v/R)^2 * ∇²curQ
+                else        @. newQ = 2curQ + 4(v/R)^2 * ∇²curQ - newQ
+                end
             end
-            @. coss = coss + J[k] * QQ
-            Q, QQ = QQ, Q
+            @. cosLΔtP += cJ[k] * newQ
+            curQ, newQ = newQ, curQ
         end
-        @. newP! = 2*coss - PP  #* attenuation_factors
+        @. newP! = 2cosLΔtP - oldP  #* attenuation_factors
     end
 
 
@@ -402,10 +421,89 @@ module Acoustics2D
          [CartesianIndex(z, x) for z in 1:nz for x in [1,nx]]]
     end
 
+
+    # function propagate(grid, v, signals,
+                       # P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
+                       # Pfile="",
+                       # seisfile="",
+                       # stencilorder::Integer=8,
+                       # recpositions=surfaceindices(1:grid.nx),
+                       # direct_only::Bool=false,)
+        # ntcache = 3
+        # onlyseis = seisfile !== ""
+
+        # @unpack Δz, Δx, Δt, nz, nx, nt = grid
+
+        # ∇²_stencil = get_∇²_stencil(stencilorder)
+        # ∇²r = length(∇²_stencil) ÷ 2
+
+        # padding = taper + ∇²r
+        # (_nz, _nx) = (n+2padding for n in (nz, nx))
+        # @show _nz, _nx
+        # @show nz, nx
+
+        # # defining pressure field
+        # _P = zeros(eltype(P0), (_nz, _nx, ntcache))
+        # # pressure field of interest
+        # P = @view _P[1+padding:end-padding, 1+padding:end-padding, :]
+        # P[:,:,1] .= P0
+
+        # # offseting signals
+        # _signals = offset_signals(signals, padding)
+
+        # # defining velocity field
+        # _v = padextremes(v, padding)
+        # if direct_only
+            # _v[:,padding+1:end-padding] .= repeat(v[1:1,:], nz+padding, 1)
+        # end
+
+        # if onlyseis
+            # nrec = length(recpositions)
+            # savedseis = discarray(seisfile, "w+", Float64, (nt, nrec))
+            # savedseis[1,:] .= P[recpositions, 1]
+        # else
+            # savedP = discarray(Pfile, "w+", Float64, (nz, nx, nt))
+        # end
+
+        # attenuation_factors = get_attenuation_factors(_P, padding,
+                                                      # attenuation,
+                                                      # ∇²r)
+
+        # I∇²r = CartesianIndex(∇²r, ∇²r)
+        # @inbounds for T in eltype(nt)(2):nt
+            # oldt = mod1(T-2, ntcache)
+            # curt = mod1(T-1, ntcache)
+            # newt = mod1(T,   ntcache)
+            # oldP = @view _P[:,:,oldt]
+            # curP = @view _P[:,:,curt]
+            # newP = @view _P[:,:,newt]
+
+            # # putting 1D signals
+            # putsignals!(_signals, T, curP)
+
+            # # solve P equation
+            # update_P!(newP, curP, oldP, _v,
+                      # ∇²_stencil, Δz, Δx, Δt,
+                      # attenuation_factors)
+
+            # if (newt === ntcache) | (T === nt)
+                # ntslice = (1:newt) .+ ntcache*floor(Int64, (T-1)/ntcache)
+                # if onlyseis
+                    # savedseis[ntslice,:] .= P[recpositions,1:newt]'
+                # else
+                    # savedP[:,:,ntslice] .= P[:,:,1:newt]
+                # end
+            # end
+        # end
+    # end
+
+
     function propagate(grid, v, signals,
                        P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
                        Pfile="",
                        seisfile="",
+                       rem=false,
+                       pseudo=false,
                        stencilorder::Integer=8,
                        recpositions=surfaceindices(1:grid.nx),
                        direct_only::Bool=false,)
@@ -414,13 +512,8 @@ module Acoustics2D
 
         @unpack Δz, Δx, Δt, nz, nx, nt = grid
 
-        ∇²_stencil = get_∇²_stencil(stencilorder)
-        ∇²r = length(∇²_stencil) ÷ 2
-
-        padding = taper + ∇²r
+        padding = taper
         (_nz, _nx) = (n+2padding for n in (nz, nx))
-        @show _nz, _nx
-        @show nz, nx
 
         # defining pressure field
         _P = zeros(eltype(P0), (_nz, _nx, ntcache))
@@ -445,11 +538,30 @@ module Acoustics2D
             savedP = discarray(Pfile, "w+", Float64, (nz, nx, nt))
         end
 
-        attenuation_factors = get_attenuation_factors(_P, padding,
-                                                      attenuation,
-                                                      ∇²r)
+        if rem
+            Vmax = maximum(v)
+            R = π*Vmax*√(1/Δx^2 + 1/Δz^2)
+            M = ceil(Int, R*Δt)+2  # M > R Δt
+            cJ = [(k==1 ? 1 : 2) * besselj(2k, R*Δt) for k in 0:M]
 
-        I∇²r = CartesianIndex(∇²r, ∇²r)
+            curQ = similar(_P[:,:,1])
+            newQ = similar(_P[:,:,1])
+            ∇²curQ = similar(_P[:,:,1])
+            cosLΔtP = similar(_P[:,:,1])
+        end
+        if pseudo
+            ∇²_filter = get_∇²_filter(_P[:,:,1], Δz, Δx) 
+            ∇² = ∇²_filter
+        else
+            ∇²_stencil = get_∇²_stencil(stencilorder)
+            ∇² = ∇²_stencil
+            # ∇²r = length(∇²_stencil) ÷ 2
+        end
+
+
+        attenuation_factors = get_attenuation_factors(_P, padding,
+                                                      attenuation,)
+
         @inbounds for T in eltype(nt)(2):nt
             oldt = mod1(T-2, ntcache)
             curt = mod1(T-1, ntcache)
@@ -462,103 +574,15 @@ module Acoustics2D
             putsignals!(_signals, T, curP)
 
             # solve P equation
-            update_P!(newP, curP, oldP, _v,
-                      ∇²_stencil, Δz, Δx, Δt,
-                      attenuation_factors)
-
-            if (newt === ntcache) | (T === nt)
-                ntslice = (1:newt) .+ ntcache*floor(Int64, (T-1)/ntcache)
-                if onlyseis
-                    savedseis[ntslice,:] .= P[recpositions,1:newt]'
-                else
-                    savedP[:,:,ntslice] .= P[:,:,1:newt]
-                end
+            if rem updatePrem!(newP, curP, oldP, _v,
+                               cosLΔtP, curQ, newQ, ∇²curQ,
+                               ∇², Δz, Δx,
+                               R, M, cJ,
+                               attenuation_factors; pseudo=pseudo)
+            else updatePfdm!(newP, curP, oldP, _v,
+                             ∇², Δz, Δx, Δt,
+                             attenuation_factors)
             end
-        end
-    end
-
-
-    function propagate_rem(grid, v, signals,
-                           P0=zero(v), taper=TAPER, attenuation=ATTENUATION;
-                           Pfile="",
-                           seisfile="",
-                           stencilorder::Integer=8,
-                           recpositions=surfaceindices(1:grid.nx),
-                           direct_only::Bool=false,)
-        ntcache = 3
-        onlyseis = seisfile !== ""
-
-        @unpack Δz, Δx, Δt, nz, nx, nt = grid
-
-        ∇²_stencil = get_∇²_stencil(stencilorder)
-        ∇²r = length(∇²_stencil) ÷ 2
-
-        padding = taper + ∇²r
-        (_nz, _nx) = (n+2padding for n in (nz, nx))
-
-        # defining pressure field
-        _P = zeros(eltype(P0), (_nz, _nx, ntcache))
-        # pressure field of interest
-        P = @view _P[1+padding:end-padding, 1+padding:end-padding, :]
-        P[:,:,1] .= P0
-
-        # offseting signals
-        _signals = offset_signals(signals, padding)
-
-        # defining velocity field
-        _v = padextremes(v, padding)
-        if direct_only
-            _v[:,padding+1:end-padding] .= repeat(v[1:1,:], nz+padding, 1)
-        end
-
-        if onlyseis
-            nrec = length(recpositions)
-            savedseis = discarray(seisfile, "w+", Float64, (nt, nrec))
-            savedseis[1,:] .= P[recpositions, 1]
-        else
-            savedP = discarray(Pfile, "w+", Float64, (nz, nx, nt))
-        end
-
-        attenuation_factors = get_attenuation_factors(_P, padding,
-                                                      attenuation,
-                                                      ∇²r)
-
-        # REM
-        Vmax = maximum(v)
-        R = π*Vmax*√(1/Δx^2 + 1/Δz^2)
-        M = ceil(Int, R*Δt)+1  # M > R Δt
-        J = [besselj(2k, R*Δt) for k in 0:M]
-        # _v .*= 3
-
-        @show Vmax
-        @show R
-        @show R*Δt
-        @show M
-        @show J
-
-        cosLΔt_P = zero(_P[:,:,1])
-        curQ = similar(_P[:,:,1])
-        newQ = similar(_P[:,:,1])
-        ∇²curQ = similar(_P[:,:,1])
-
-        I∇²r = CartesianIndex(∇²r, ∇²r)
-        @inbounds for T in eltype(nt)(2):nt
-            oldt = mod1(T-2, ntcache)
-            curt = mod1(T-1, ntcache)
-            newt = mod1(T,   ntcache)
-            oldP = @view _P[:,:,oldt]
-            curP = @view _P[:,:,curt]
-            newP = @view _P[:,:,newt]
-
-            # putting 1D signals
-            putsignals!(_signals, T, curP)
-
-            # solve P equation
-            update_P_rem!(newP, curP, oldP, _v, padding,
-                          cosLΔt_P, curQ, newQ, ∇²curQ,
-                          ∇²_stencil, Δz, Δx,
-                          R, M, J,  # differ!
-                          attenuation_factors)
 
             if (newt === ntcache) | (T === nt)
                 ntslice = (1:newt) .+ ntcache*floor(Int64, (T-1)/ntcache)

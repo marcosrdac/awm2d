@@ -14,15 +14,29 @@ multiseisfile = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
 multiseisgainfile = "/mnt/hdd/home/tmp/awp_data/multi_seis_gain.bin"
 
 # mesh definition
-Δz = 10.0 # m
-Δx = 10.0 # m
-Δt = 0.001 # s
+Δz = 20.0 # m
+Δx = 20.0 # m
+Δt = 0.002 # s
 # nt = 4500
 # nt = 3000
 # nx = 50
 # nz = 50
 # nt = 800
-nt = 500
+nt = 600
 # nt = 300
 # nt = 300
+# nt = 100
+
+## mesh definition
+# Δz = 8.0 m
+# Δx = 25.0 m
+# Δt = 0.004 s
+# nt = 4500
+# nt = 3000
+# nx = 50
+# nz = 50
+# nt = 800
+# nt = 10
+# nt = 300
+# nt = 600
 # nt = 100

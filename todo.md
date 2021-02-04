@@ -22,7 +22,7 @@
 - [X] generate synthetic seismograms (various shots)
 - [X] make complete migration routine
 - [X] adjust image condition overhead
-- [O] read some articles (*busquem conhecimento...*  - ET Bilu)
+- [X] read some articles (*busquem conhecimento...*  - ET Bilu)
   - [X] 1983_baysal_rtm
   - [X] 1984_levin_rtm_principle
   - [X] 1989_mcmechan_acoustic_rtm_imaging_review **(a 10 for this one's didactic!)**
@@ -30,8 +30,11 @@
   - [X] 2018_sortberg_wave_eq_solution_via_ann
   - [X] 2018_pestana_rem_wave_equation_time_evolution
   - [X] 2020_neural_ode_exploration_and_implementation
-- [ ] program REM
-- [ ] learn an autograd with an ANN exaple
+- [X] program REM
+- [X] correct REM
+- [X] learn autograd with an ANN exaple
+- [ ] add fourier laplacian
+- [ ] cosmetics: parameters file like Reynam's
 - [ ] train neural network with 1 propagation cube
 - [ ] study LSTM ANNs
 - [ ] create velocity fields database
