@@ -1,24 +1,31 @@
 # Modeling parameters
 
-
-# === Modeling kind === #
-kind = "direct modeling"
-# kind = "multiple-shot modeling"
-# kind = "rtm"
-
 # === Mesh settings === #
 Δz = 8.0  # m
-Δx = 25.0  # m
+Δx = 25.0  # m 
 Δt = 0.002  # s
 nt = 2400
+
+# === Modeling kind === #
+kind = "single shot modeling"
+# kind = "multiple shot modeling"
+# kind = "reverse time migration"
 
 # === Simple direct modeling source position === #
 (sx, sz) = (1, 1)
 
+# === PDE Solver settings === #
+# --- time --- #
+# use REM or fall back to FDM
+rem = true
+# --- space --- #
+# use PSM or fall back to FDM
+pseudo = false
+
 
 ##### PATH SETTINGS #####
 
-if kind == "direct modeling"
+if kind == "single shot modeling"
 
     # === Direct modeling path settings === #
     # --- INPUT --- #
@@ -30,7 +37,7 @@ if kind == "direct modeling"
     # seismogram out (alternative)
     seisfile = "/mnt/hdd/home/tmp/awp_data/seis.bin"
 
-elseif kind == "multiple-shot modeling"
+elseif kind == "multiple shot modeling"
 
     # Multiple-shot modeling parameters
     # --- INPUT --- #
@@ -41,7 +48,7 @@ elseif kind == "multiple-shot modeling"
     # --- OUTPUT --- #
     multiseisfile = "/mnt/hdd/home/tmp/awp_data/multi_seis.bin"
 
-elseif kind == "rtm"
+elseif kind == "reverse time migration"
 
     # === RTM path settings === #
     # --- INPUT --- #
