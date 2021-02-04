@@ -22,6 +22,7 @@ module Acoustics2D
     # standard constants
     const TAPER = 60
     const ATTENUATION = 0.0035  # found | Átila's = 0.008
+    # const ATTENUATION = 0.0010  # found | Átila's = 0.008
 
 
     """
@@ -289,7 +290,7 @@ module Acoustics2D
         return out
     end
 
-    function get_∇²_filter(A, dz=1, dx=1)
+    function get∇²filter(A, dz=1, dx=1)
         (nz, nx) = size(A)
         dkz = 2π/(nz*dz)
         dkx = 2π/(nx*dx)
@@ -298,7 +299,7 @@ module Acoustics2D
         Ψ = ifftshift(-(kz.^2 + kx.^2))
     end
 
-    function apply_filter(Ψ, A; out=similar(A))
+    function applyfilter(Ψ, A; out=similar(A))
         out .= real(ifft(Ψ .* fft(A)))
     end
 
@@ -335,38 +336,26 @@ module Acoustics2D
         r = length(∇²_stencil) ÷ 2
         @threads for I in CartesianIndices((1+r:size(v,1)-r, 1+r:size(v,2)-r))
             newP![I] = newp(I, curP, oldP, v,
-                             ∇²_stencil, Δz, Δx, Δt,
-                             attenuation_factors[I])
+                            ∇²_stencil, Δz, Δx, Δt,
+                            attenuation_factors[I])
         end
     end
 
-
-    function Q(k, x)
-        if     k>=4  2*(1+2x^2) * Q(k-2, x) - Q(k-4, x)
-        elseif k==2  1+2x^2
-        else         one(x)
-        end
-    end
-
-    # using PyPlot
-
-    # when it works, add attenuation_factor...
     function updatePrem!(newP!, curP, oldP, v,
                         cosLΔtP, curQ, newQ, ∇²curQ,
                         ∇², Δz, Δx,
                         R, M, cJ, attenuation_factors;
                         pseudo=false)
-
         cosLΔtP .= 0
         for k = 1:M
-            if k === 1 newQ .= curP  #* attenuation_factors
+            if k === 1 @. newQ = curP
             else
                 # compute laplacian
-                if pseudo  apply_filter(∇², curQ; out=∇²curQ)
+                if pseudo  applyfilter(∇², curQ; out=∇²curQ)
                 else       compute_∇²(curQ, ∇², Δz, Δx; out=∇²curQ)
                 end
 
-                # continue Chebychev expansion
+                # continue Chebyshev expansion
                 if k === 2  @. newQ = curQ + 2(v/R)^2 * ∇²curQ
                 else        @. newQ = 2curQ + 4(v/R)^2 * ∇²curQ - newQ
                 end
@@ -374,7 +363,7 @@ module Acoustics2D
             @. cosLΔtP += cJ[k] * newQ
             curQ, newQ = newQ, curQ
         end
-        @. newP! = 2cosLΔtP - oldP  #* attenuation_factors
+        @. newP! = (2cosLΔtP - oldP * attenuation_factors) * attenuation_factors
     end
 
 
@@ -541,16 +530,20 @@ module Acoustics2D
         if rem
             Vmax = maximum(v)
             R = π*Vmax*√(1/Δx^2 + 1/Δz^2)
-            M = ceil(Int, R*Δt)+2  # M > R Δt
-            cJ = [(k==1 ? 1 : 2) * besselj(2k, R*Δt) for k in 0:M]
+            M = ceil(Int, R*Δt) + 2  # M>RΔt (=RΔt+1 generates low freq noise)
+            cJ = [(k==0 ? 1 : 2) * besselj(2k, R*Δt) for k in 0:M-1]
 
             curQ = similar(_P[:,:,1])
             newQ = similar(_P[:,:,1])
             ∇²curQ = similar(_P[:,:,1])
             cosLΔtP = similar(_P[:,:,1])
+        else
+            # no suport for space pseudo + time fdm yet
+            pseudo = false
         end
+
         if pseudo
-            ∇²_filter = get_∇²_filter(_P[:,:,1], Δz, Δx) 
+            ∇²_filter = get∇²filter(_P[:,:,1], Δz, Δx) 
             ∇² = ∇²_filter
         else
             ∇²_stencil = get_∇²_stencil(stencilorder)
