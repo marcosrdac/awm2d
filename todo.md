@@ -30,13 +30,35 @@
   - [X] 2018_sortberg_wave_eq_solution_via_ann
   - [X] 2018_pestana_rem_wave_equation_time_evolution
   - [X] 2020_neural_ode_exploration_and_implementation
+- [X] read REM articles
+  - [X] 2010_reynam
+  - [X] 2019_reynam
 - [X] program REM
-- [X] correct REM
-- [X] learn autograd with an ANN exaple
-- [ ] add fourier laplacian
-- [ ] cosmetics: parameters file like Reynam's
+- [X] learn ANN
+- [X] learn autograd with ANN exaple (AutoGrad --> JAX)
+- [X] apply autograd to a different goal (to gain fluency)
+- [X] code 1D FDM in Python
+- [X] make a data feeder for a 1D AWM PINN
+- [X] correct REM: the issue was on bessel function times coeficients array (cJ)
+
+- this week
+- [X] REM low frequency noise: solved by adding another Chebyshev expansion term
+- [X] gain confidence with Fourier transform frequency manipulation
+- [X] code 2D laplacian as a frequency filter (pseudo-spectral method)
+- [X] join propagation functions to an only routine with different options
+  - [X] time fdm + space fdm
+  - [X] time rem + space fdm
+  - [X] time rem + space pseudo
+- [X] cosmetics: parameters file like Reynam's
+- [ ] try to train our neural network training algorithm
+
+
+# BFP
+Compare traditional modeling (maybe rtm) with ANN model approximation
+
+
 - [ ] train neural network with 1 propagation cube
 - [ ] study LSTM ANNs
 - [ ] create velocity fields database
 - [ ] create useful propagation snaps database
-- [ ] create different useful WE aproximators using ANNs
+- [ ] create WE aproximator using ANNs
