@@ -31,8 +31,8 @@
   - [X] 2018_pestana_rem_wave_equation_time_evolution
   - [X] 2020_neural_ode_exploration_and_implementation
 - [X] read REM articles
-  - [X] 2010_reynam
-  - [X] 2019_reynam
+  - [X] 2010_pestana
+  - [X] 2019_pestana
 - [X] program REM
 - [X] learn ANN
 - [X] learn autograd with ANN exaple (AutoGrad --> JAX)
@@ -40,8 +40,6 @@
 - [X] code 1D FDM in Python
 - [X] make a data feeder for a 1D AWM PINN
 - [X] correct REM: the issue was on bessel function times coeficients array (cJ)
-
-- this week
 - [X] REM low frequency noise: solved by adding another Chebyshev expansion term
 - [X] gain confidence with Fourier transform frequency manipulation
 - [X] code 2D laplacian as a frequency filter (pseudo-spectral method)
@@ -50,7 +48,7 @@
   - [X] time rem + space fdm
   - [X] time rem + space pseudo
 - [X] cosmetics: parameters file like Reynam's
-- [ ] try to train our neural network training algorithm
+- [ ] train our neural network
 
 
 # BFP
@@ -62,3 +60,5 @@ Compare traditional modeling (maybe rtm) with ANN model approximation
 - [ ] create velocity fields database
 - [ ] create useful propagation snaps database
 - [ ] create WE aproximator using ANNs
+- [ ] U-Net for inversion
+- [ ] U-Net for fault identification

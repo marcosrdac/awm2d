@@ -36,3 +36,5 @@ Contact
     - **Website:** [marcosrdac.com](www.marcosrdac.com)
   - **Advisor:** Átila Saraiva Quintela Soares
     - **E-mail:** [atilasaraiva@gmail.com](atilasaraiva@gmail.com)
+  - **Advisor:** Reynam da Cruz Pestana
+    - **E-mail:** [atilasaraiva@gmail.com](atilasaraiva@gmail.com)
