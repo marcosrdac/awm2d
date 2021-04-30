@@ -37,4 +37,9 @@ Contact
   - **Advisor:** Átila Saraiva Quintela Soares
     - **E-mail:** [atilasaraiva@gmail.com](atilasaraiva@gmail.com)
   - **Advisor:** Reynam da Cruz Pestana
-    - **E-mail:** [atilasaraiva@gmail.com](atilasaraiva@gmail.com)
+    - **E-mail:** [reynam@ufba.br](reynam@ufba.br)
+
+Thanks
+======
+
+  - **Victor Kohene** - for tips and material on finite-difference method implementation.
