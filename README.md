@@ -3,7 +3,7 @@ AWM2D (Acoustic Wave Modeling 2D)
 
 This module provides functions for the 2D wave equation solving through the finite-difference method (FDM). It can also perform reverse time propagation of data for seismic migration.
 
-AWM2D is written in Julia and advised by @AtilaSaraiva through weekly meetings.
+AWM2D is written in Julia and advised by Átila Saraiva and Reynam Pestana through weekly meetings.
 
 
 Examples
