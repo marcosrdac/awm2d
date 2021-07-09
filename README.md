@@ -42,4 +42,4 @@ Contact
 Thanks
 ======
 
-  - **Victor Kohene** - for tips and material on finite-difference method implementation.
+  - **Victor Koehene** - for tips and material on finite-difference method implementation.
